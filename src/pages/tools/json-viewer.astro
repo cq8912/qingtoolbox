@@ -24,10 +24,13 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
         <label>输出</label>
         <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-tree">全部展开</button>
       </div>
-      <div class="json-output-wrap json-formatter-host" id="json-output">
+      <div class="json-output-wrap json-formatter-host json-style-bracket" id="json-output">
         <span class="json-placeholder">结果将显示在这里</span>
       </div>
       <p class="field-hint" id="json-output-stats">0 字符 · 0 行</p>
+      <div class="json-output-foot">
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-style-toggle">切换简洁样式</button>
+      </div>
     </div>
   </div>
 </ToolLayout>
@@ -42,6 +45,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   const inputStats = document.getElementById('json-input-stats')!;
   const outputStats = document.getElementById('json-output-stats')!;
   const toggleBtn = document.getElementById('btn-toggle-tree')!;
+  const styleBtn = document.getElementById('btn-style-toggle')!;
 
   let lastData: any = null;
   let treeExpanded = false;
@@ -146,6 +150,13 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     if (lastData == null) return;
     treeExpanded = !treeExpanded;
     renderTree(lastData);
+  });
+
+  styleBtn.addEventListener('click', () => {
+    const isBracket = output.classList.contains('json-style-bracket');
+    output.classList.toggle('json-style-bracket', !isBracket);
+    output.classList.toggle('json-style-plain', isBracket);
+    styleBtn.textContent = isBracket ? '切换括号样式' : '切换简洁样式';
   });
 
   document.getElementById('btn-clear')!.addEventListener('click', () => {

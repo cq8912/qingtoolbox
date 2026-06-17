@@ -1,5 +1,6 @@
 /* 轻工具箱 - 纸质感工业风 */
 @import '../../node_modules/json-formatter-js/dist/json-formatter.css';
+
 :root {
   --bg: #f3efe6;
   --surface: #faf8f4;
@@ -52,7 +53,7 @@ a:hover {
 }
 
 .container-wide {
-  max-width: 1360px;
+  max-width: 1400px;
   width: 100%;
   margin: 0 auto;
   padding: 0 24px;
@@ -210,7 +211,7 @@ main {
 }
 
 .tool-sidebar {
-  width: 168px;
+  width: 128px;
   flex-shrink: 0;
   position: sticky;
   top: calc(var(--header-h) + 16px);
@@ -426,8 +427,12 @@ main {
 
 .json-split {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
+}
+
+.json-split > .tool-panel {
+  min-width: 0;
 }
 
 .json-output-wrap {
@@ -470,16 +475,26 @@ main {
   margin-bottom: 8px;
 }
 
-.json-panel-header label { margin-bottom: 0; }
+.json-panel-header label {
+  margin-bottom: 0;
+}
 
 .btn-sm {
   padding: 4px 12px;
   font-size: 0.78rem;
 }
 
-.json-placeholder { color: var(--muted); }
+.json-placeholder {
+  color: var(--muted);
+}
 
-.json-minify { margin: 0; white-space: pre-wrap; word-break: break-all; font-family: var(--mono); font-size: 0.82rem; }
+.json-minify {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
 
 /* JSON 树：左侧虚线层级 + 括号强调 */
 .json-formatter-host .json-formatter-row {
@@ -518,9 +533,38 @@ main {
   font-weight: 600;
 }
 
-.json-formatter-host .json-formatter-row.json-formatter-open > .json-formatter-children {
+.json-formatter-host .json-formatter-row.json-formatter-open>.json-formatter-children {
   margin-top: 2px;
   margin-bottom: 6px;
+}
+
+.json-output-foot {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 默认：括号层级感更强 */
+.json-formatter-host.json-style-bracket .json-formatter-bracket {
+  display: inline-block;
+  padding: 0 2px;
+  border-radius: 4px;
+  background: #f8efe4;
+}
+
+.json-formatter-host.json-style-bracket .json-formatter-children {
+  border-left: 1.5px dashed #c9bfb0;
+}
+
+/* 备选：简洁模式 */
+.json-formatter-host.json-style-plain .json-formatter-children {
+  border-left: none;
+  padding-left: 0.55rem;
+}
+
+.json-formatter-host.json-style-plain .json-formatter-bracket {
+  background: transparent;
+  padding: 0;
 }
 
 .merge-dropzone {
@@ -532,7 +576,10 @@ main {
   outline: none;
 }
 
-.merge-dropzone.dragover { border-color: var(--primary); background: rgba(180, 83, 9, 0.05); }
+.merge-dropzone.dragover {
+  border-color: var(--primary);
+  background: rgba(180, 83, 9, 0.05);
+}
 
 .merge-options {
   display: grid;
@@ -557,7 +604,11 @@ main {
   overflow: hidden;
 }
 
-.thumb-item img { width: 100%; height: 100%; object-fit: cover; }
+.thumb-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
 .thumb-del {
   position: absolute;
@@ -567,7 +618,7 @@ main {
   height: 20px;
   border: none;
   border-radius: 50%;
-  background: rgba(0,0,0,0.55);
+  background: rgba(0, 0, 0, 0.55);
   color: #fff;
   cursor: pointer;
   font-size: 14px;
