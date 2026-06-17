@@ -41,15 +41,14 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
       <div class="hanzi-box-panel">
         <h2>跟写练习</h2>
-        <p class="hanzi-tip">按提示笔画在格子里描红，写错 2 次会高亮正确笔画</p>
+        <p class="hanzi-tip">直接在格子里按笔顺描红，写错 2 次会高亮正确笔画</p>
         <div class="tianzi-wrap" id="hanzi-practice-wrap">
           <div id="hanzi-practice" class="tianzi-target"></div>
         </div>
         <div class="btn-row hanzi-actions">
-          <button type="button" class="btn" id="btn-start-quiz">开始跟写</button>
           <button type="button" class="btn btn-secondary" id="btn-reset-quiz">重置</button>
         </div>
-        <p class="hanzi-status" id="hanzi-status">点「开始跟写」后在格子里书写</p>
+        <p class="hanzi-status" id="hanzi-status">选中汉字后即可跟写</p>
       </div>
     </div>
   </div>
@@ -171,7 +170,8 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     HanziWriter.loadCharacterData(ch).then((data) => {
       const n = data?.strokes?.length || 0;
       strokeHintEl.textContent = n ? `共 ${n} 笔` : '';
-      statusEl.textContent = '点「开始跟写」后在格子里书写';
+      playDemo();
+      startQuiz();
     }).catch(() => {
       statusEl.textContent = '该字暂不支持，请换一个试试';
     });
@@ -199,10 +199,11 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     found.forEach((ch) => {
       if (!chars.includes(ch)) chars.push(ch);
     });
+    const pick = found[found.length - 1];
     saveChars();
     inputEl.value = '';
     renderCharList();
-    if (!activeChar && chars.length) selectChar(chars[chars.length - 1]);
+    selectChar(pick);
   }
 
   function playDemo() {
@@ -239,8 +240,8 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   function resetQuiz() {
     if (!practiceWriter || !activeChar) return;
     practiceWriter.cancelQuiz();
-    practiceWriter.setCharacter(activeChar);
-    statusEl.textContent = '已重置，可再次开始跟写';
+    practiceWriter.setCharacter(activeChar).then(() => startQuiz());
+    statusEl.textContent = '已重置，请继续跟写';
   }
 
   loadChars();
@@ -254,6 +255,5 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   demoWrap.addEventListener('click', playDemo);
   document.getElementById('btn-replay')!.addEventListener('click', playDemo);
   document.getElementById('btn-loop')!.addEventListener('click', startLoop);
-  document.getElementById('btn-start-quiz')!.addEventListener('click', startQuiz);
   document.getElementById('btn-reset-quiz')!.addEventListener('click', resetQuiz);
 </script>

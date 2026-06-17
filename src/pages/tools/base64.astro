@@ -16,13 +16,13 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
       <textarea id="b64-text" class="json-editor" placeholder="输入要编码的文本"></textarea>
       <div class="btn-row">
         <button class="btn" id="btn-encode">编码 →</button>
-        <button class="btn btn-secondary" id="btn-decode">← 解码</button>
       </div>
     </div>
     <div class="tool-panel">
       <label for="b64-result">Base64 结果</label>
       <textarea id="b64-result" class="json-editor" placeholder="Base64 编码结果"></textarea>
       <div class="btn-row">
+        <button class="btn btn-secondary" id="btn-decode">← 解码</button>
         <button class="btn btn-secondary" id="btn-copy">复制结果</button>
       </div>
       <div id="b64-msg"></div>
