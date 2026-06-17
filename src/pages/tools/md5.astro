@@ -10,19 +10,20 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   <h1 slot="header">MD5 在线加密</h1>
   <p class="intro">输入文本，计算 MD5 哈希值（32 位小写十六进制）。</p>
 
-  <div class="tool-panel">
-    <label for="md5-input">输入文本</label>
-    <textarea id="md5-input" placeholder="请输入要计算 MD5 的文本"></textarea>
-    <div class="btn-row">
-      <button class="btn" id="btn-md5">计算 MD5</button>
-      <button class="btn btn-secondary" id="btn-md5-copy">复制结果</button>
+  <div class="json-split">
+    <div class="tool-panel">
+      <label for="md5-input">输入</label>
+      <textarea id="md5-input" class="json-editor" placeholder="请输入要计算 MD5 的文本"></textarea>
+      <div class="btn-row">
+        <button class="btn" id="btn-md5">计算 MD5</button>
+        <button class="btn btn-secondary" id="btn-md5-copy">复制结果</button>
+      </div>
+      <div id="md5-msg"></div>
     </div>
-    <div id="md5-msg"></div>
-  </div>
-
-  <div class="tool-panel">
-    <label for="md5-output">MD5 结果（32 位小写）</label>
-    <input type="text" id="md5-output" readonly placeholder="哈希值将显示在这里" />
+    <div class="tool-panel">
+      <label for="md5-output">MD5 结果（32 位小写）</label>
+      <textarea id="md5-output" class="json-editor output-readonly" readonly placeholder="哈希值将显示在这里"></textarea>
+    </div>
   </div>
 
   <section class="section">
@@ -39,7 +40,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   import { md5 } from 'js-md5';
 
   const input = document.getElementById('md5-input') as HTMLTextAreaElement;
-  const output = document.getElementById('md5-output') as HTMLInputElement;
+  const output = document.getElementById('md5-output') as HTMLTextAreaElement;
   const msg = document.getElementById('md5-msg')!;
 
   function showMsg(text: string, type: 'error' | 'success') {
@@ -47,13 +48,21 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     msg.textContent = text;
   }
 
-  document.getElementById('btn-md5')!.addEventListener('click', () => {
+  function calc() {
     const val = input.value;
     if (!val) {
-      showMsg('请输入文本', 'error');
+      output.value = '';
       return;
     }
     output.value = md5(val);
+  }
+
+  document.getElementById('btn-md5')!.addEventListener('click', () => {
+    if (!input.value) {
+      showMsg('请输入文本', 'error');
+      return;
+    }
+    calc();
     showMsg('计算完成', 'success');
   });
 
@@ -63,12 +72,5 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     showMsg('已复制', 'success');
   });
 
-  // 输入时实时计算
-  input.addEventListener('input', () => {
-    if (input.value) {
-      output.value = md5(input.value);
-    } else {
-      output.value = '';
-    }
-  });
+  input.addEventListener('input', calc);
 </script>

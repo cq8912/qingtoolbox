@@ -334,6 +334,12 @@ main {
   tab-size: 2;
 }
 
+.tool-panel textarea.output-readonly {
+  background: var(--bg);
+  color: var(--text);
+  cursor: default;
+}
+
 .field-hint {
   font-size: 0.78rem;
   color: var(--muted);
