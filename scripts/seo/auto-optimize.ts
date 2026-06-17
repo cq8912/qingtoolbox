@@ -1,0 +1,113 @@
+import fs from 'fs';
+import path from 'path';
+
+type Opportunity = {
+  page?: string;
+  query?: string;
+  score?: number;
+  impressions?: number;
+};
+
+const REPORT_DIR = 'reports/daily';
+const TOOLS_FILE = 'src/data/tools.json';
+
+const TOOL_TEMPLATE: Record<string, (q: string) => string> = {
+  'json-viewer': (q) => `JSON 格式化校验工具，支持${q}、在线修复压缩与树形查看，浏览器本地处理。`,
+  base64: (q) => `Base64 在线编码解码工具，支持${q}、中文 UTF-8 文本互转与一键复制。`,
+  md5: (q) => `MD5 在线哈希计算工具，支持${q}等常见校验场景，实时生成 32 位 MD5 值。`,
+  'image-merge': (q) => `图片在线拼接与标注工具，支持${q}、等宽等高合并与拖拽粘贴上传。`,
+  'image-compress': (q) => `图片压缩在线工具，支持${q}、质量尺寸调节与浏览器本地处理。`,
+};
+
+const TOOL_SHORT_TEMPLATE: Record<string, (q: string) => string> = {
+  'json-viewer': (q) => `格式化、校验、修复 JSON，支持${q}`,
+  base64: (q) => `Base64 文本互转，支持${q}`,
+  md5: (q) => `在线计算 MD5 哈希，支持${q}`,
+  'image-merge': (q) => `多图拼接 + 标注，支持${q}`,
+  'image-compress': (q) => `本地压缩图片，支持${q}`,
+};
+
+function normalizeQuery(input: string) {
+  return input.replace(/\s+/g, '').replace(/[<>]/g, '').slice(0, 18);
+}
+
+function parseSlug(page?: string) {
+  if (!page) return '';
+  try {
+    const url = new URL(page);
+    const m = url.pathname.match(/^\/tools\/([^/]+)\/?$/);
+    return m?.[1] || '';
+  } catch {
+    return '';
+  }
+}
+
+function pickBestBySlug(rows: Opportunity[]) {
+  const best = new Map<string, Opportunity>();
+  for (const row of rows) {
+    const slug = parseSlug(row.page);
+    if (!slug || !(slug in TOOL_TEMPLATE)) continue;
+    const query = normalizeQuery(row.query || '');
+    if (!query || query.length < 2) continue;
+    const prev = best.get(slug);
+    if (!prev || (row.score || 0) > (prev.score || 0)) {
+      best.set(slug, { ...row, query });
+    }
+  }
+  return best;
+}
+
+function updateToolPage(slug: string, query: string) {
+  const file = path.join('src/pages/tools', `${slug}.astro`);
+  if (!fs.existsSync(file)) return false;
+  const content = fs.readFileSync(file, 'utf-8');
+  const nextDesc = TOOL_TEMPLATE[slug](query);
+  const next = content.replace(/description="[^"]+"/, `description="${nextDesc}"`);
+  if (next == content) return false;
+  fs.writeFileSync(file, next);
+  return true;
+}
+
+function updateToolsJson(best: Map<string, Opportunity>) {
+  if (!fs.existsSync(TOOLS_FILE)) return false;
+  const list = JSON.parse(fs.readFileSync(TOOLS_FILE, 'utf-8')) as Array<{ slug: string; desc: string }>;
+  let changed = false;
+  for (const item of list) {
+    const hit = best.get(item.slug);
+    if (!hit?.query || !TOOL_SHORT_TEMPLATE[item.slug]) continue;
+    const nextDesc = TOOL_SHORT_TEMPLATE[item.slug](hit.query);
+    if (item.desc != nextDesc) {
+      item.desc = nextDesc;
+      changed = true;
+    }
+  }
+  if (changed) {
+    fs.writeFileSync(TOOLS_FILE, `${JSON.stringify(list, null, 2)}\n`);
+  }
+  return changed;
+}
+
+function selfCheck() {
+  // ponytail: 最小自检，防止 URL 解析回归
+  const slug = parseSlug('https://tools.cqzzz.top/tools/json-viewer/');
+  if (slug != 'json-viewer') throw new Error('self-check failed: parseSlug');
+}
+
+async function main() {
+  selfCheck();
+  const oppFile = path.join(REPORT_DIR, 'opportunities.json');
+  if (!fs.existsSync(oppFile)) {
+    console.log('skip: opportunities.json 不存在');
+    return;
+  }
+  const rows = JSON.parse(fs.readFileSync(oppFile, 'utf-8')) as Opportunity[];
+  const best = pickBestBySlug(rows);
+  let touched = 0;
+  for (const [slug, row] of best) {
+    if (row.query && updateToolPage(slug, row.query)) touched += 1;
+  }
+  if (updateToolsJson(best)) touched += 1;
+  console.log(`auto-optimize done, touched=${touched}, targets=${best.size}`);
+}
+
+main();

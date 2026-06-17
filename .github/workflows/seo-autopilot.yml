@@ -1,0 +1,51 @@
+name: SEO Autopilot
+
+on:
+  schedule:
+    - cron: '20 2 * * *'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  autopilot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Fetch and analyze GSC data
+        env:
+          GSC_SITE_URL: ${{ secrets.GSC_SITE_URL }}
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+        run: |
+          npm run seo:fetch-gsc
+          npm run seo:analyze
+
+      - name: Auto optimize pages
+        run: npm run seo:auto-optimize
+
+      - name: Validate build
+        run: npm run build
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git add src/pages/tools/*.astro src/data/tools.json
+          git commit -m "seo: 自动优化工具页文案"
+          git push origin main

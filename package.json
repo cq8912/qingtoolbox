@@ -11,6 +11,7 @@
     "seo:fetch-gsc": "tsx scripts/seo/fetch-gsc.ts",
     "seo:analyze": "tsx scripts/seo/analyze-gsc.ts",
     "seo:daily-report": "tsx scripts/seo/daily-report.ts",
+    "seo:auto-optimize": "tsx scripts/seo/auto-optimize.ts",
     "qa:links": "tsx scripts/qa/check-links.ts",
     "qa:metadata": "tsx scripts/qa/check-metadata.ts"
   },
