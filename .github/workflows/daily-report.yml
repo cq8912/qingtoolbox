@@ -11,6 +11,9 @@ env:
 jobs:
   daily-report:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
 
     steps:
       - uses: actions/checkout@v6
@@ -40,3 +43,16 @@ jobs:
           name: seo-daily-${{ github.run_id }}
           path: reports/
           retention-days: 30
+
+      - name: Publish brief to GitHub issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="SEO 每日报告（自动）"
+          body=$(cat reports/daily/latest-report.md)
+          issue=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number')
+          if [ -n "$issue" ] && [ "$issue" != "null" ]; then
+            gh issue comment "$issue" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body" --label "seo"
+          fi
