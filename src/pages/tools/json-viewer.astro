@@ -4,7 +4,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
 <ToolLayout title="JSON 在线查看器" description="免费 JSON 格式化、校验、修复与压缩。支持大文本，浏览器本地处理。" currentSlug="json-viewer">
   <h1 slot="header">JSON 在线查看器</h1>
-  <p class="intro">粘贴 JSON，格式化失败时自动尝试修复，输出支持语法高亮。</p>
+  <p class="intro">粘贴 JSON，格式化失败时自动尝试修复，输出为可折叠树形视图。</p>
 
   <div class="json-split">
     <div class="tool-panel">
@@ -20,13 +20,12 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
       <div id="json-msg"></div>
     </div>
     <div class="tool-panel">
-      <label>输出</label>
-      <div class="json-fold-bar">
-        <button type="button" class="btn btn-secondary" id="btn-fold">折叠一级</button>
-        <button type="button" class="btn btn-secondary" id="btn-expand">全部展开</button>
+      <div class="json-panel-header">
+        <label>输出</label>
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-tree">全部展开</button>
       </div>
-      <div class="json-output-wrap" id="json-output">
-        <span style="color:var(--muted)">结果将显示在这里</span>
+      <div class="json-output-wrap json-formatter-host" id="json-output">
+        <span class="json-placeholder">结果将显示在这里</span>
       </div>
       <p class="field-hint" id="json-output-stats">0 字符 · 0 行</p>
     </div>
@@ -35,16 +34,20 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
 <script>
   import { jsonrepair } from 'jsonrepair';
+  import JSONFormatter from 'json-formatter-js';
 
   const input = document.getElementById('json-input') as HTMLTextAreaElement;
   const output = document.getElementById('json-output')!;
   const msg = document.getElementById('json-msg')!;
   const inputStats = document.getElementById('json-input-stats')!;
   const outputStats = document.getElementById('json-output-stats')!;
-  let lastFormatted = '';
+  const toggleBtn = document.getElementById('btn-toggle-tree')!;
 
-  function showMsg(text: string, type: 'error' | 'success' | 'warn') {
-    msg.className = `msg ${type == 'warn' ? 'success' : type}`;
+  let lastData: any = null;
+  let treeExpanded = false;
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
     msg.textContent = text;
   }
 
@@ -55,66 +58,30 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   function getErrorLine(raw: string, err: Error) {
     const m = err.message.match(/position\s+(\d+)/i);
     if (!m) return null;
-    const pos = Number(m[1]);
-    return raw.slice(0, pos).split('\n').length;
+    return raw.slice(0, Number(m[1])).split('\n').length;
   }
 
-  function escapeHtml(s: string) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  }
-
-  // 简单 JSON 语法高亮
-  function highlightJson(json: string) {
-    const escaped = escapeHtml(json);
-    return escaped.replace(
-      /("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
-      (match) => {
-        if (/^"/.test(match)) {
-          return /:$/.test(match)
-            ? `<span class="jk">${match}</span>`
-            : `<span class="js">${match}</span>`;
-        }
-        if (/null/.test(match)) return `<span class="jnull">${match}</span>`;
-        if (/true|false/.test(match)) return `<span class="jb">${match}</span>`;
-        return `<span class="jn">${match}</span>`;
-      },
-    );
-  }
-
-  function renderOutput(text: string, folded = false) {
-    lastFormatted = text;
-    if (!text) {
-      output.innerHTML = '<span style="color:var(--muted)">结果将显示在这里</span>';
-      updateStats('', outputStats);
-      return;
-    }
-    if (folded) {
-      output.innerHTML = buildFoldedHtml(text);
-    } else {
-      output.innerHTML = `<pre style="margin:0;white-space:pre-wrap;word-break:break-all">${highlightJson(text)}</pre>`;
-    }
+  function renderTree(data: any) {
+    lastData = data;
+    output.innerHTML = '';
+    const openDepth = treeExpanded ? 99 : 1;
+    const formatter = new JSONFormatter(data, openDepth, {
+      hoverPreviewEnabled: false,
+      theme: 'light',
+    });
+    output.appendChild(formatter.render());
+    const text = JSON.stringify(data, null, 2);
     updateStats(text, outputStats);
+    toggleBtn.textContent = treeExpanded ? '全部折叠' : '全部展开';
   }
 
-  // 折叠 JSON 一级字段
-  function buildFoldedHtml(json: string) {
-    try {
-      const data = JSON.parse(json);
-      if (typeof data != 'object' || data == null || Array.isArray(data)) {
-        return `<pre style="margin:0;white-space:pre-wrap">${highlightJson(json)}</pre>`;
-      }
-      const keys = Object.keys(data);
-      return keys.map((k) => {
-        const val = JSON.stringify(data[k], null, 2);
-        const preview = val.length > 80 ? val.slice(0, 80) + '…' : val;
-        return `<details class="json-fold" open><summary><span class="jk">"${escapeHtml(k)}"</span></summary><pre style="margin:4px 0 8px 12px;white-space:pre-wrap">${highlightJson(preview)}</pre></details>`;
-      }).join('');
-    } catch {
-      return `<pre style="margin:0">${highlightJson(json)}</pre>`;
-    }
+  function renderEmpty() {
+    lastData = null;
+    output.innerHTML = '<span class="json-placeholder">结果将显示在这里</span>';
+    updateStats('', outputStats);
   }
 
-  function parseOrRepair(raw: string): { data: any; repaired: boolean; errDesc?: string } {
+  function parseOrRepair(raw: string) {
     try {
       return { data: JSON.parse(raw), repaired: false };
     } catch (e) {
@@ -122,9 +89,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
       const line = getErrorLine(raw, err);
       const errDesc = line ? `第 ${line} 行附近：${err.message}` : err.message;
       try {
-        const repaired = jsonrepair(raw);
-        const data = JSON.parse(repaired);
-        return { data, repaired: true, errDesc };
+        return { data: JSON.parse(jsonrepair(raw)), repaired: true, errDesc };
       } catch {
         throw new Error(errDesc + ' → 自动修复失败，请人工检查');
       }
@@ -139,22 +104,23 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     }
     try {
       const { data, repaired, errDesc } = parseOrRepair(raw);
-      const text = JSON.stringify(data, null, pretty ? 2 : 0);
       if (pretty) {
         input.value = JSON.stringify(data, null, 2);
         updateStats(input.value, inputStats);
-      }
-      renderOutput(pretty ? JSON.stringify(data, null, 2) : text);
-      input.classList.remove('error-line');
-      if (repaired && errDesc) {
-        showMsg(`${errDesc} → 已自动修复`, 'success');
+        renderTree(data);
       } else {
-        showMsg(pretty ? '格式化成功' : '压缩成功', 'success');
+        const min = JSON.stringify(data);
+        output.innerHTML = `<pre class="json-minify">${min}</pre>`;
+        lastData = data;
+        updateStats(min, outputStats);
       }
+      input.classList.remove('error-line');
+      if (repaired && errDesc) showMsg(`${errDesc} → 已自动修复`, 'success');
+      else showMsg(pretty ? '格式化成功' : '压缩成功', 'success');
     } catch (e) {
       input.classList.add('error-line');
       showMsg((e as Error).message, 'error');
-      renderOutput('');
+      renderEmpty();
     }
   }
 
@@ -165,10 +131,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
   document.getElementById('btn-validate')!.addEventListener('click', () => {
     const raw = input.value.trim();
-    if (!raw) {
-      showMsg('请输入 JSON 内容', 'error');
-      return;
-    }
+    if (!raw) { showMsg('请输入 JSON 内容', 'error'); return; }
     try {
       parseOrRepair(raw);
       input.classList.remove('error-line');
@@ -179,21 +142,20 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     }
   });
 
-  document.getElementById('btn-fold')!.addEventListener('click', () => {
-    if (lastFormatted) renderOutput(lastFormatted, true);
-  });
-
-  document.getElementById('btn-expand')!.addEventListener('click', () => {
-    if (lastFormatted) renderOutput(lastFormatted, false);
+  toggleBtn.addEventListener('click', () => {
+    if (lastData == null) return;
+    treeExpanded = !treeExpanded;
+    renderTree(lastData);
   });
 
   document.getElementById('btn-clear')!.addEventListener('click', () => {
     input.value = '';
-    lastFormatted = '';
-    renderOutput('');
+    treeExpanded = false;
+    renderEmpty();
     msg.textContent = '';
     msg.className = '';
     input.classList.remove('error-line');
     updateStats('', inputStats);
+    toggleBtn.textContent = '全部展开';
   });
 </script>

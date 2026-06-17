@@ -2,121 +2,203 @@
 import ToolLayout from '../../layouts/ToolLayout.astro';
 ---
 
-<ToolLayout title="图片合并" description="在线多张图片拼接，支持等宽/等高对齐，纯浏览器处理。" currentSlug="image-merge">
-  <h1 slot="header">图片合并</h1>
-  <p class="intro">横向拼接建议等高对齐，纵向拼接建议等宽对齐。</p>
+<ToolLayout title="图片合并与标注" description="多图拼接、等宽等高对齐，支持箭头方框文字标注，支持拖拽与粘贴上传。" currentSlug="image-merge">
+  <h1 slot="header">图片合并与标注</h1>
+  <p class="intro">拖拽、粘贴或选择图片，可拼接合并，也可在图上画箭头、方框、文字（类似微信截图）。</p>
 
   <div class="tool-panel">
-    <label for="merge-files">选择图片（可多选）</label>
-    <input type="file" id="merge-files" accept="image/*" multiple />
-    <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="merge-dropzone" id="merge-dropzone" tabindex="0">
+      <p>拖拽图片到此处，或 Ctrl+V 粘贴截图</p>
+      <div class="btn-row" style="justify-content:center;margin-top:8px">
+        <label class="btn btn-secondary" style="cursor:pointer">
+          选择文件
+          <input type="file" id="merge-files" accept="image/*" multiple hidden />
+        </label>
+      </div>
+    </div>
+    <div class="thumb-strip" id="thumb-strip"></div>
+
+    <div class="merge-options">
       <div>
         <label for="merge-direction">拼接方向</label>
-        <select id="merge-direction" style="margin-top:8px">
+        <select id="merge-direction">
           <option value="horizontal">横向（左右）</option>
           <option value="vertical">纵向（上下）</option>
         </select>
       </div>
       <div>
         <label for="merge-align">尺寸对齐</label>
-        <select id="merge-align" style="margin-top:8px">
-          <option value="none">不对齐（原尺寸）</option>
+        <select id="merge-align">
+          <option value="none">不对齐</option>
           <option value="equal-height" selected>等高</option>
           <option value="equal-width">等宽</option>
         </select>
       </div>
     </div>
+
     <div class="btn-row">
-      <button class="btn" id="btn-merge">开始合并</button>
-      <a class="btn btn-secondary" id="btn-download" download="merged.png" style="display:none">下载图片</a>
+      <button class="btn" id="btn-merge">合并图片</button>
+      <button class="btn btn-secondary" id="btn-edit-single">单图标注</button>
+      <a class="btn btn-secondary" id="btn-download" download="image.png" style="display:none">下载</a>
     </div>
     <div id="merge-msg"></div>
   </div>
 
-  <div class="tool-panel">
-    <label>预览</label>
-    <canvas id="merge-canvas" style="max-width:100%;border:1px solid var(--border);border-radius:6px;margin-top:8px"></canvas>
+  <div class="tool-panel annotate-panel" id="annotate-panel" style="display:none">
+    <div class="annotate-toolbar">
+      <button type="button" class="btn btn-secondary btn-sm tool-btn active" data-tool="select">选择</button>
+      <button type="button" class="btn btn-secondary btn-sm tool-btn" data-tool="rect">方框</button>
+      <button type="button" class="btn btn-secondary btn-sm tool-btn" data-tool="arrow">箭头</button>
+      <button type="button" class="btn btn-secondary btn-sm tool-btn" data-tool="polyline">折线</button>
+      <button type="button" class="btn btn-secondary btn-sm tool-btn" data-tool="text">文字</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-finish-poly">完成折线</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-undo">撤销</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-del">删除</button>
+    </div>
+    <div class="fabric-wrap">
+      <canvas id="fabric-canvas"></canvas>
+    </div>
   </div>
 </ToolLayout>
 
 <script>
+  import { ImageAnnotator, stitchImages, loadImageFromFile, loadImageFromBlob } from '../../scripts/image-annotate';
+
+  type QueueItem = { id: string; file: File; url: string; img: HTMLImageElement };
+
+  const dropzone = document.getElementById('merge-dropzone')!;
   const fileInput = document.getElementById('merge-files') as HTMLInputElement;
+  const thumbStrip = document.getElementById('thumb-strip')!;
   const direction = document.getElementById('merge-direction') as HTMLSelectElement;
   const align = document.getElementById('merge-align') as HTMLSelectElement;
-  const canvas = document.getElementById('merge-canvas') as HTMLCanvasElement;
+  const annotatePanel = document.getElementById('annotate-panel')!;
+  const fabricEl = document.getElementById('fabric-canvas') as HTMLCanvasElement;
   const download = document.getElementById('btn-download') as HTMLAnchorElement;
   const msg = document.getElementById('merge-msg')!;
+
+  let queue: QueueItem[] = [];
+  let annotator: ImageAnnotator | null = null;
 
   function showMsg(text: string, type: 'error' | 'success') {
     msg.className = `msg ${type}`;
     msg.textContent = text;
   }
 
+  function renderThumbs() {
+    thumbStrip.innerHTML = '';
+    queue.forEach((item) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'thumb-item';
+      wrap.innerHTML = `<img src="${item.url}" alt="" /><button type="button" class="thumb-del">×</button>`;
+      wrap.querySelector('.thumb-del')!.addEventListener('click', () => {
+        queue = queue.filter((q) => q.id != item.id);
+        renderThumbs();
+      });
+      thumbStrip.appendChild(wrap);
+    });
+  }
+
+  async function addFiles(files: FileList | File[]) {
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      const img = await loadImageFromFile(file);
+      queue.push({ id: crypto.randomUUID(), file, url: img.src, img });
+    }
+    renderThumbs();
+    if (queue.length) showMsg(`已添加，共 ${queue.length} 张`, 'success');
+  }
+
+  async function loadToAnnotator(dataUrl: string) {
+    if (annotator) annotator.dispose();
+    annotator = new ImageAnnotator(fabricEl);
+    await annotator.setBackground(dataUrl);
+    annotatePanel.style.display = 'block';
+    download.style.display = 'inline-block';
+    download.href = dataUrl;
+  }
+
+  // 工具栏只绑定一次，避免重复 merge 时叠监听器
+  let toolsBound = false;
+  function bindAnnotateTools() {
+    if (toolsBound) return;
+    toolsBound = true;
+    document.querySelectorAll('.tool-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tool-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        annotator?.setTool((btn as HTMLElement).dataset.tool as any);
+      });
+    });
+    document.getElementById('btn-finish-poly')!.onclick = () => annotator?.finishPolyline();
+    document.getElementById('btn-undo')!.onclick = () => annotator?.undo();
+    document.getElementById('btn-del')!.onclick = () => annotator?.deleteSelected();
+    download.onclick = () => {
+      if (annotator) download.href = annotator.exportPng();
+    };
+  }
+  bindAnnotateTools();
+
   direction.addEventListener('change', () => {
     align.value = direction.value == 'horizontal' ? 'equal-height' : 'equal-width';
   });
 
-  function loadImage(file: File): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = URL.createObjectURL(file);
-    });
-  }
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (e.dataTransfer?.files.length) addFiles(e.dataTransfer.files);
+  });
 
-  function calcSizes(images: HTMLImageElement[], alignMode: string) {
-    const maxW = Math.max(...images.map((i) => i.width));
-    const maxH = Math.max(...images.map((i) => i.height));
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files?.length) addFiles(fileInput.files);
+    fileInput.value = '';
+  });
 
-    return images.map((img) => {
-      if (alignMode == 'equal-height') {
-        const scale = maxH / img.height;
-        return { w: Math.round(img.width * scale), h: maxH };
+  // 粘贴截图（微信等）
+  document.addEventListener('paste', async (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        const blob = item.getAsFile();
+        if (blob) {
+          const img = await loadImageFromBlob(blob);
+          const file = new File([blob], 'paste.png', { type: blob.type });
+          queue.push({ id: crypto.randomUUID(), file, url: img.src, img });
+          renderThumbs();
+          showMsg('已粘贴图片', 'success');
+        }
       }
-      if (alignMode == 'equal-width') {
-        const scale = maxW / img.width;
-        return { w: maxW, h: Math.round(img.height * scale) };
-      }
-      return { w: img.width, h: img.height };
-    });
-  }
+    }
+  });
 
   document.getElementById('btn-merge')!.addEventListener('click', async () => {
-    const files = fileInput.files;
-    if (!files || files.length < 2) {
-      showMsg('请至少选择 2 张图片', 'error');
+    if (queue.length < 2) {
+      showMsg('合并至少需要 2 张图片', 'error');
       return;
     }
+    const isH = direction.value == 'horizontal';
+    const dataUrl = stitchImages(queue.map((q) => q.img), isH, align.value);
+    await loadToAnnotator(dataUrl);
+    showMsg(`合并完成，共 ${queue.length} 张，可开始标注`, 'success');
+  });
 
-    try {
-      const images = await Promise.all(Array.from(files).map(loadImage));
-      const isH = direction.value == 'horizontal';
-      const sizes = calcSizes(images, align.value);
-
-      const totalW = isH ? sizes.reduce((s, x) => s + x.w, 0) : Math.max(...sizes.map((x) => x.w));
-      const totalH = isH ? Math.max(...sizes.map((x) => x.h)) : sizes.reduce((s, x) => s + x.h, 0);
-
-      canvas.width = totalW;
-      canvas.height = totalH;
-      const ctx = canvas.getContext('2d')!;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, totalW, totalH);
-
-      let offset = 0;
-      images.forEach((img, i) => {
-        const { w, h } = sizes[i];
-        const yOff = isH ? Math.floor((totalH - h) / 2) : offset;
-        const xOff = isH ? offset : Math.floor((totalW - w) / 2);
-        ctx.drawImage(img, xOff, yOff, w, h);
-        offset += isH ? w : h;
-      });
-
-      download.href = canvas.toDataURL('image/png');
-      download.style.display = 'inline-block';
-      showMsg(`合并完成，共 ${images.length} 张`, 'success');
-    } catch {
-      showMsg('图片加载失败', 'error');
+  document.getElementById('btn-edit-single')!.addEventListener('click', async () => {
+    if (queue.length < 1) {
+      showMsg('请先添加至少 1 张图片', 'error');
+      return;
     }
+    const c = document.createElement('canvas');
+    const img = queue.length == 1 ? queue[0].img : queue[0].img;
+    if (queue.length == 1) {
+      c.width = img.width;
+      c.height = img.height;
+      c.getContext('2d')!.drawImage(img, 0, 0);
+      await loadToAnnotator(c.toDataURL('image/png'));
+      showMsg('已进入标注模式', 'success');
+      return;
+    }
+    showMsg('多图请先点「合并图片」，或只保留一张', 'error');
   });
 </script>

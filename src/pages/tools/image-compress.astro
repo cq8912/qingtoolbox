@@ -4,7 +4,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
 <ToolLayout title="图片压缩" description="在线图片压缩，支持质量、尺寸比例调节，浏览器本地处理。" currentSlug="image-compress">
   <h1 slot="header">图片压缩</h1>
-  <p class="intro">点击原图区域上传，调节质量与尺寸比例，实时预览压缩效果。</p>
+  <p class="intro">点击原图区域上传，调节质量与尺寸，实时预览压缩效果。</p>
 
   <div class="compress-workspace">
     <div class="compress-panel">
@@ -30,6 +30,16 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
           <input type="range" id="compress-scale" min="10" max="100" value="100" />
         </div>
       </div>
+      <div class="size-input-row">
+        <div>
+          <label class="field-label" for="size-w">宽 (px)</label>
+          <input type="number" id="size-w" min="1" placeholder="自动" />
+        </div>
+        <div>
+          <label class="field-label" for="size-h">高 (px)</label>
+          <input type="number" id="size-h" min="1" placeholder="自动" />
+        </div>
+      </div>
       <div>
         <label class="field-label" for="compress-format">输出格式</label>
         <select id="compress-format">
@@ -38,7 +48,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
           <option value="image/png">PNG</option>
         </select>
       </div>
-      <div class="btn-row" style="margin-top:0">
+      <div class="btn-row compress-btn-row">
         <button class="btn" id="btn-compress">压缩</button>
         <a class="btn btn-secondary" id="btn-compress-dl" download="compressed.jpg" style="display:none">下载</a>
       </div>
@@ -64,6 +74,8 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   const qualityVal = document.getElementById('quality-val')!;
   const scale = document.getElementById('compress-scale') as HTMLInputElement;
   const scaleVal = document.getElementById('scale-val')!;
+  const sizeW = document.getElementById('size-w') as HTMLInputElement;
+  const sizeH = document.getElementById('size-h') as HTMLInputElement;
   const format = document.getElementById('compress-format') as HTMLSelectElement;
   const slotCompressed = document.getElementById('slot-compressed')!;
   const metaOriginal = document.getElementById('meta-original')!;
@@ -75,6 +87,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   let currentFile: File | null = null;
   let origW = 0, origH = 0;
   let debounceTimer: ReturnType<typeof setTimeout>;
+  let lockRatio = true;
 
   function fmtSize(bytes: number) {
     if (bytes < 1024) return bytes + ' B';
@@ -87,17 +100,35 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     msg.textContent = text;
   }
 
-  function setCompressedPreview(dataUrl: string) {
-    slotCompressed.innerHTML = `<img src="${dataUrl}" alt="" style="max-width:100%;max-height:100%;object-fit:contain" />`;
+  function syncSizeInputs(w: number, h: number) {
+    sizeW.value = String(w);
+    sizeH.value = String(h);
+  }
+
+  function updateScaleFromSize(w: number) {
+    if (!origW) return;
+    const pct = Math.round((w / origW) * 100);
+    scale.value = String(Math.min(100, Math.max(10, pct)));
+    scaleVal.textContent = scale.value + '%';
+  }
+
+  function getOutputSize(natW: number, natH: number) {
+    const wIn = Number(sizeW.value);
+    const hIn = Number(sizeH.value);
+    if (wIn > 0 && hIn > 0) return { w: wIn, h: hIn };
+    if (wIn > 0) return { w: wIn, h: Math.round(natH * (wIn / natW)) };
+    if (hIn > 0) return { w: Math.round(natW * (hIn / natH)), h: hIn };
+    const ratio = Number(scale.value) / 100;
+    return { w: Math.round(natW * ratio), h: Math.round(natH * ratio) };
   }
 
   function doCompress() {
     if (!currentFile) return;
     const img = new Image();
     img.onload = () => {
-      const ratio = Number(scale.value) / 100;
-      const w = Math.round(img.width * ratio);
-      const h = Math.round(img.height * ratio);
+      const { w, h } = getOutputSize(img.width, img.height);
+      syncSizeInputs(w, h);
+
       const canvas = document.createElement('canvas');
       canvas.width = w;
       canvas.height = h;
@@ -108,7 +139,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
       const q = Number(quality.value) / 100;
       const dataUrl = canvas.toDataURL(mime, q);
 
-      setCompressedPreview(dataUrl);
+      slotCompressed.innerHTML = `<img src="${dataUrl}" alt="" style="max-width:100%;max-height:100%;object-fit:contain" />`;
       download.href = dataUrl;
       const ext = mime.split('/')[1] == 'jpeg' ? 'jpg' : mime.split('/')[1];
       download.download = `compressed.${ext}`;
@@ -125,7 +156,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
         <span>原图：<strong>${fmtSize(currentFile!.size)}</strong> · ${origW}×${origH}</span>
         <span>压缩后：<strong>${fmtSize(compressedSize)}</strong> · ${w}×${h}</span>
         <span>节省：<strong>${saved}%</strong></span>
-        <span>质量 ${quality.value}% · 比例 ${scale.value}% · ${ext.toUpperCase()}</span>
+        <span>质量 ${quality.value}% · ${ext.toUpperCase()}</span>
       `;
       showMsg('压缩完成', 'success');
     };
@@ -141,6 +172,9 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
       placeholder.style.display = 'none';
       imgPreview.src = img.src;
       imgPreview.style.display = 'block';
+      syncSizeInputs(origW, origH);
+      scale.value = '100';
+      scaleVal.textContent = '100%';
       metaOriginal.textContent = `${origW}×${origH} px · ${fmtSize(file.size)}`;
       doCompress();
     };
@@ -152,7 +186,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     if (file) onFileSelect(file);
   });
 
-  slotWrap.addEventListener('dragover', (e) => { e.preventDefault(); });
+  slotWrap.addEventListener('dragover', (e) => e.preventDefault());
   slotWrap.addEventListener('drop', (e) => {
     e.preventDefault();
     const file = e.dataTransfer?.files?.[0];
@@ -167,6 +201,35 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
   scale.addEventListener('input', () => {
     scaleVal.textContent = scale.value + '%';
+    if (origW && origH) {
+      const w = Math.round(origW * Number(scale.value) / 100);
+      const h = Math.round(origH * Number(scale.value) / 100);
+      syncSizeInputs(w, h);
+    }
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(doCompress, 300);
+  });
+
+  sizeW.addEventListener('input', () => {
+    const w = Number(sizeW.value);
+    if (!w || !origW) return;
+    if (lockRatio && origH) {
+      const h = Math.round(origH * (w / origW));
+      sizeH.value = String(h);
+    }
+    updateScaleFromSize(w);
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(doCompress, 300);
+  });
+
+  sizeH.addEventListener('input', () => {
+    const h = Number(sizeH.value);
+    if (!h || !origH) return;
+    if (lockRatio && origW) {
+      const w = Math.round(origW * (h / origH));
+      sizeW.value = String(w);
+      updateScaleFromSize(w);
+    }
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(doCompress, 300);
   });
