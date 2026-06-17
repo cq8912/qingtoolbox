@@ -5,6 +5,11 @@ const REPORT_DIR = 'reports/daily';
 const SITE_URL = process.env.GSC_SITE_URL || 'https://tools.cqzzz.top/';
 const CREDENTIALS_JSON = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
 
+function parseCredentials(raw: string) {
+  const cleaned = raw.replace(/^\uFEFF/, '').trim();
+  return JSON.parse(cleaned);
+}
+
 // GSC API 单次最多 25000 行，ponytail: 按 startRow 分页拉全量
 async function queryGsc(dimensions: string[], startDate: string, endDate: string) {
   if (!CREDENTIALS_JSON) {
@@ -13,7 +18,7 @@ async function queryGsc(dimensions: string[], startDate: string, endDate: string
   }
 
   const { google } = await import('googleapis');
-  const creds = JSON.parse(CREDENTIALS_JSON);
+  const creds = parseCredentials(CREDENTIALS_JSON);
   const auth = new google.auth.GoogleAuth({
     credentials: creds,
     scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
