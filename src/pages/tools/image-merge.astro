@@ -4,7 +4,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
 <ToolLayout title="图片合并" description="在线多张图片拼接，支持等宽/等高对齐，纯浏览器处理。" currentSlug="image-merge">
   <h1 slot="header">图片合并</h1>
-  <p class="intro">选择多张图片横向或纵向拼接，可选等宽/等高对齐。</p>
+  <p class="intro">横向拼接建议等高对齐，纵向拼接建议等宽对齐。</p>
 
   <div class="tool-panel">
     <label for="merge-files">选择图片（可多选）</label>
@@ -21,8 +21,8 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
         <label for="merge-align">尺寸对齐</label>
         <select id="merge-align" style="margin-top:8px">
           <option value="none">不对齐（原尺寸）</option>
-          <option value="equal-width">等宽（横向推荐）</option>
-          <option value="equal-height">等高（纵向推荐）</option>
+          <option value="equal-height" selected>等高</option>
+          <option value="equal-width">等宽</option>
         </select>
       </div>
     </div>
@@ -52,6 +52,10 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     msg.textContent = text;
   }
 
+  direction.addEventListener('change', () => {
+    align.value = direction.value == 'horizontal' ? 'equal-height' : 'equal-width';
+  });
+
   function loadImage(file: File): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -61,17 +65,21 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     });
   }
 
-  // 按对齐模式计算每张图绘制尺寸
-  function getDrawSize(img: HTMLImageElement, alignMode: string, isH: boolean, ref: number) {
-    if (alignMode == 'equal-width' && isH) {
-      const scale = ref / img.width;
-      return { w: ref, h: Math.round(img.height * scale) };
-    }
-    if (alignMode == 'equal-height' && !isH) {
-      const scale = ref / img.height;
-      return { w: Math.round(img.width * scale), h: ref };
-    }
-    return { w: img.width, h: img.height };
+  function calcSizes(images: HTMLImageElement[], alignMode: string) {
+    const maxW = Math.max(...images.map((i) => i.width));
+    const maxH = Math.max(...images.map((i) => i.height));
+
+    return images.map((img) => {
+      if (alignMode == 'equal-height') {
+        const scale = maxH / img.height;
+        return { w: Math.round(img.width * scale), h: maxH };
+      }
+      if (alignMode == 'equal-width') {
+        const scale = maxW / img.width;
+        return { w: maxW, h: Math.round(img.height * scale) };
+      }
+      return { w: img.width, h: img.height };
+    });
   }
 
   document.getElementById('btn-merge')!.addEventListener('click', async () => {
@@ -84,14 +92,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     try {
       const images = await Promise.all(Array.from(files).map(loadImage));
       const isH = direction.value == 'horizontal';
-      const alignMode = align.value;
-
-      const sizes = images.map((img) => {
-        let ref = 0;
-        if (alignMode == 'equal-width' && isH) ref = Math.max(...images.map((i) => i.width));
-        if (alignMode == 'equal-height' && !isH) ref = Math.max(...images.map((i) => i.height));
-        return getDrawSize(img, alignMode, isH, ref);
-      });
+      const sizes = calcSizes(images, align.value);
 
       const totalW = isH ? sizes.reduce((s, x) => s + x.w, 0) : Math.max(...sizes.map((x) => x.w));
       const totalH = isH ? Math.max(...sizes.map((x) => x.h)) : sizes.reduce((s, x) => s + x.h, 0);

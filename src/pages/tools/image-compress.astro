@@ -4,20 +4,20 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
 <ToolLayout title="图片压缩" description="在线图片压缩，支持质量、尺寸比例调节，浏览器本地处理。" currentSlug="image-compress">
   <h1 slot="header">图片压缩</h1>
-  <p class="intro">上传图片，调节质量与尺寸比例，实时预览压缩效果。</p>
+  <p class="intro">点击原图区域上传，调节质量与尺寸比例，实时预览压缩效果。</p>
 
   <div class="compress-workspace">
     <div class="compress-panel">
-      <div class="field-label">原图</div>
-      <div class="img-slot" id="slot-original"><span>等待上传</span></div>
+      <div class="field-label">原图（点击上传）</div>
+      <label class="img-slot img-slot-upload" id="slot-original-wrap">
+        <input type="file" id="compress-file" accept="image/*" />
+        <span id="slot-original-placeholder">点击上传图片</span>
+        <img id="img-original-preview" alt="" style="display:none;max-width:100%;max-height:100%;object-fit:contain" />
+      </label>
       <div class="img-meta" id="meta-original">—</div>
     </div>
 
     <div class="compress-panel compress-controls">
-      <label class="upload-zone" id="upload-zone">
-        <input type="file" id="compress-file" accept="image/*" />
-        点击上传图片
-      </label>
       <div>
         <label class="field-label">质量 <span class="range-val" id="quality-val">80%</span></label>
         <div class="range-row">
@@ -57,13 +57,14 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
 <script>
   const fileInput = document.getElementById('compress-file') as HTMLInputElement;
-  const uploadZone = document.getElementById('upload-zone')!;
+  const slotWrap = document.getElementById('slot-original-wrap')!;
+  const placeholder = document.getElementById('slot-original-placeholder')!;
+  const imgPreview = document.getElementById('img-original-preview') as HTMLImageElement;
   const quality = document.getElementById('compress-quality') as HTMLInputElement;
   const qualityVal = document.getElementById('quality-val')!;
   const scale = document.getElementById('compress-scale') as HTMLInputElement;
   const scaleVal = document.getElementById('scale-val')!;
   const format = document.getElementById('compress-format') as HTMLSelectElement;
-  const slotOriginal = document.getElementById('slot-original')!;
   const slotCompressed = document.getElementById('slot-compressed')!;
   const metaOriginal = document.getElementById('meta-original')!;
   const metaCompressed = document.getElementById('meta-compressed')!;
@@ -86,8 +87,8 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     msg.textContent = text;
   }
 
-  function setSlot(slot: HTMLElement, src: string | null, placeholder: string) {
-    slot.innerHTML = src ? `<img src="${src}" alt="" />` : `<span>${placeholder}</span>`;
+  function setCompressedPreview(dataUrl: string) {
+    slotCompressed.innerHTML = `<img src="${dataUrl}" alt="" style="max-width:100%;max-height:100%;object-fit:contain" />`;
   }
 
   function doCompress() {
@@ -107,7 +108,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
       const q = Number(quality.value) / 100;
       const dataUrl = canvas.toDataURL(mime, q);
 
-      setSlot(slotCompressed, dataUrl, '');
+      setCompressedPreview(dataUrl);
       download.href = dataUrl;
       const ext = mime.split('/')[1] == 'jpeg' ? 'jpg' : mime.split('/')[1];
       download.download = `compressed.${ext}`;
@@ -133,13 +134,13 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
   function onFileSelect(file: File) {
     currentFile = file;
-    origW = 0;
-    origH = 0;
     const img = new Image();
     img.onload = () => {
       origW = img.width;
       origH = img.height;
-      setSlot(slotOriginal, img.src, '');
+      placeholder.style.display = 'none';
+      imgPreview.src = img.src;
+      imgPreview.style.display = 'block';
       metaOriginal.textContent = `${origW}×${origH} px · ${fmtSize(file.size)}`;
       doCompress();
     };
@@ -151,8 +152,8 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     if (file) onFileSelect(file);
   });
 
-  uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); });
-  uploadZone.addEventListener('drop', (e) => {
+  slotWrap.addEventListener('dragover', (e) => { e.preventDefault(); });
+  slotWrap.addEventListener('drop', (e) => {
     e.preventDefault();
     const file = e.dataTransfer?.files?.[0];
     if (file && file.type.startsWith('image/')) onFileSelect(file);
