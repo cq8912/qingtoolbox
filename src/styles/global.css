@@ -431,8 +431,28 @@ main {
   gap: 16px;
 }
 
-.json-split > .tool-panel {
+.json-split>.tool-panel {
   min-width: 0;
+}
+
+.json-workbench.is-json-page-full {
+  position: fixed;
+  inset: calc(var(--header-h) + 10px) 18px 18px;
+  z-index: 600;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 14px;
+  overflow: auto;
+}
+
+.json-workbench.is-json-page-full .json-split {
+  min-height: 100%;
+}
+
+body.json-page-full {
+  overflow: hidden;
 }
 
 .json-output-wrap {
@@ -477,6 +497,11 @@ main {
 
 .json-panel-header label {
   margin-bottom: 0;
+}
+
+.json-header-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .btn-sm {
@@ -544,6 +569,27 @@ main {
   justify-content: flex-end;
 }
 
+.json-style-switch {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  gap: 4px;
+}
+
+.json-style-switch .btn-sm {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  min-width: 72px;
+}
+
+.json-style-switch .btn-sm.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
 /* 默认：括号层级感更强 */
 .json-formatter-host.json-style-bracket .json-formatter-bracket {
   display: inline-block;
@@ -556,6 +602,38 @@ main {
   border-left: 1.5px dashed #c9bfb0;
 }
 
+.json-formatter-host.json-style-bracket .json-formatter-children.json-formatter-object::before {
+  content: "{";
+  display: block;
+  color: #92400e;
+  font-weight: 700;
+  margin-left: -0.68rem;
+}
+
+.json-formatter-host.json-style-bracket .json-formatter-children.json-formatter-object::after {
+  content: "}";
+  display: block;
+  color: #92400e;
+  font-weight: 700;
+  margin-left: -0.68rem;
+}
+
+.json-formatter-host.json-style-bracket .json-formatter-children.json-formatter-array::before {
+  content: "[";
+  display: block;
+  color: #92400e;
+  font-weight: 700;
+  margin-left: -0.68rem;
+}
+
+.json-formatter-host.json-style-bracket .json-formatter-children.json-formatter-array::after {
+  content: "]";
+  display: block;
+  color: #92400e;
+  font-weight: 700;
+  margin-left: -0.68rem;
+}
+
 /* 备选：简洁模式 */
 .json-formatter-host.json-style-plain .json-formatter-children {
   border-left: none;
@@ -565,6 +643,43 @@ main {
 .json-formatter-host.json-style-plain .json-formatter-bracket {
   background: transparent;
   padding: 0;
+}
+
+/* 代码风：高对比，适合大 JSON 快速扫读 */
+.json-formatter-host.json-style-code {
+  background: #111827;
+  color: #e5e7eb;
+}
+
+.json-formatter-host.json-style-code .json-formatter-row,
+.json-formatter-host.json-style-code .json-formatter-row a,
+.json-formatter-host.json-style-code .json-formatter-row a:hover {
+  color: #e5e7eb;
+}
+
+.json-formatter-host.json-style-code .json-formatter-children {
+  border-left: 1px dashed #4b5563;
+}
+
+.json-formatter-host.json-style-code .json-formatter-key {
+  color: #93c5fd;
+}
+
+.json-formatter-host.json-style-code .json-formatter-string,
+.json-formatter-host.json-style-code .json-formatter-stringifiable {
+  color: #86efac;
+}
+
+.json-formatter-host.json-style-code .json-formatter-number {
+  color: #f9a8d4;
+}
+
+.json-formatter-host.json-style-code .json-formatter-boolean {
+  color: #fca5a5;
+}
+
+.json-formatter-host.json-style-code .json-formatter-bracket {
+  color: #fde68a;
 }
 
 .merge-dropzone {

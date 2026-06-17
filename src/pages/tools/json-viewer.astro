@@ -6,6 +6,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   <h1 slot="header">JSON 在线查看器</h1>
   <p class="intro">粘贴 JSON，格式化失败时自动尝试修复，输出为可折叠树形视图。</p>
 
+  <div class="json-workbench" id="json-workbench">
   <div class="json-split">
     <div class="tool-panel">
       <label for="json-input">输入</label>
@@ -22,16 +23,24 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     <div class="tool-panel">
       <div class="json-panel-header">
         <label>输出</label>
-        <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-tree">全部展开</button>
+        <div class="json-header-actions">
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-tree">全部展开</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-json-full">页面全屏</button>
+        </div>
       </div>
       <div class="json-output-wrap json-formatter-host json-style-bracket" id="json-output">
         <span class="json-placeholder">结果将显示在这里</span>
       </div>
       <p class="field-hint" id="json-output-stats">0 字符 · 0 行</p>
       <div class="json-output-foot">
-        <button type="button" class="btn btn-secondary btn-sm" id="btn-style-toggle">切换简洁样式</button>
+        <div class="json-style-switch" id="json-style-switch">
+          <button type="button" class="btn btn-secondary btn-sm active" data-style="bracket">括号</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-style="plain">简洁</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-style="code">代码风</button>
+        </div>
       </div>
     </div>
+  </div>
   </div>
 </ToolLayout>
 
@@ -45,10 +54,28 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   const inputStats = document.getElementById('json-input-stats')!;
   const outputStats = document.getElementById('json-output-stats')!;
   const toggleBtn = document.getElementById('btn-toggle-tree')!;
-  const styleBtn = document.getElementById('btn-style-toggle')!;
+  const fullBtn = document.getElementById('btn-json-full')!;
+  const styleSwitch = document.getElementById('json-style-switch')!;
+  const workbench = document.getElementById('json-workbench')!;
 
   let lastData: any = null;
   let treeExpanded = false;
+  let previewTimer: number | null = null;
+  let currentStyle: 'bracket' | 'plain' | 'code' = 'bracket';
+
+  const pathConfig = {
+    expandPaths: [
+      'chatData.tools.*.function',
+      'chatData.tools.*.function.name',
+      'chatData.tools.*.function.description',
+    ],
+    collapsePaths: [
+      '*.parameters',
+      '*.properties',
+      '*.enum',
+      '*.required',
+    ],
+  };
 
   function showMsg(text: string, type: 'error' | 'success') {
     msg.className = `msg ${type}`;
@@ -72,8 +99,11 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     const formatter = new JSONFormatter(data, openDepth, {
       hoverPreviewEnabled: false,
       theme: 'light',
+      exposePath: true,
     });
     output.appendChild(formatter.render());
+    applyPathRules();
+    applyOutputStyle();
     const text = JSON.stringify(data, null, 2);
     updateStats(text, outputStats);
     toggleBtn.textContent = treeExpanded ? '全部折叠' : '全部展开';
@@ -128,7 +158,105 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     }
   }
 
-  input.addEventListener('input', () => updateStats(input.value, inputStats));
+  function scheduleAutoPreview() {
+    if (previewTimer) window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(() => {
+      const raw = input.value.trim();
+      if (!raw) {
+        renderEmpty();
+        msg.textContent = '';
+        msg.className = '';
+        return;
+      }
+      try {
+        const { data } = parseOrRepair(raw);
+        renderTree(data);
+        input.classList.remove('error-line');
+      } catch (e) {
+        input.classList.add('error-line');
+        showMsg(`自动预览失败：${(e as Error).message}`, 'error');
+      }
+    }, 1000);
+  }
+
+  function normalizePath(pathRaw: string) {
+    return pathRaw.replace(/\.\d+\./g, '.*.').replace(/\.\d+$/g, '.*');
+  }
+
+  function pathMatches(path: string, pattern: string) {
+    if (pattern.startsWith('*.')) {
+      const tail = pattern.slice(1);
+      return path.endsWith(tail);
+    }
+    const norm = normalizePath(path);
+    const p1 = norm.split('.');
+    const p2 = pattern.split('.');
+    if (p1.length != p2.length) return false;
+    for (let i = 0; i < p1.length; i += 1) {
+      if (p2[i] == '*') continue;
+      if (p1[i] != p2[i]) return false;
+    }
+    return true;
+  }
+
+  function setRowOpen(row: Element, shouldOpen: boolean) {
+    const opened = row.classList.contains('json-formatter-open');
+    if (opened == shouldOpen) return false;
+    const toggler = row.querySelector(':scope > .json-formatter-toggler-link');
+    if (toggler instanceof HTMLElement) {
+      toggler.click();
+      return true;
+    }
+    return false;
+  }
+
+  function applyPathRules() {
+    for (let turn = 0; turn < 8; turn += 1) {
+      let changed = false;
+      const rows = output.querySelectorAll('.json-formatter-row[data-path]');
+      rows.forEach((row) => {
+        const path = row.getAttribute('data-path');
+        if (!path) return;
+        const parsed = JSON.parse(path);
+        const keyPath = Array.isArray(parsed) ? parsed.join('.') : '';
+        if (!keyPath) return;
+        if (pathConfig.expandPaths.some((p) => pathMatches(keyPath, p))) {
+          if (setRowOpen(row, true)) changed = true;
+        }
+      });
+      if (!changed) break;
+    }
+    const rows = output.querySelectorAll('.json-formatter-row[data-path]');
+    rows.forEach((row) => {
+      const path = row.getAttribute('data-path');
+      if (!path) return;
+      const parsed = JSON.parse(path);
+      const keyPath = Array.isArray(parsed) ? parsed.join('.') : '';
+      if (!keyPath) return;
+      if (pathConfig.collapsePaths.some((p) => pathMatches(keyPath, p))) {
+        setRowOpen(row, false);
+      }
+    });
+  }
+
+  function applyOutputStyle() {
+    output.classList.remove('json-style-bracket', 'json-style-plain', 'json-style-code');
+    output.classList.add(`json-style-${currentStyle}`);
+    styleSwitch.querySelectorAll('button').forEach((btn) => {
+      btn.classList.toggle('active', (btn as HTMLElement).dataset.style == currentStyle);
+    });
+  }
+
+  function togglePageFull() {
+    workbench.classList.toggle('is-json-page-full');
+    document.body.classList.toggle('json-page-full', workbench.classList.contains('is-json-page-full'));
+    fullBtn.textContent = workbench.classList.contains('is-json-page-full') ? '退出全屏' : '页面全屏';
+  }
+
+  input.addEventListener('input', () => {
+    updateStats(input.value, inputStats);
+    scheduleAutoPreview();
+  });
 
   document.getElementById('btn-format')!.addEventListener('click', () => runFormat(true));
   document.getElementById('btn-minify')!.addEventListener('click', () => runFormat(false));
@@ -152,11 +280,13 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     renderTree(lastData);
   });
 
-  styleBtn.addEventListener('click', () => {
-    const isBracket = output.classList.contains('json-style-bracket');
-    output.classList.toggle('json-style-bracket', !isBracket);
-    output.classList.toggle('json-style-plain', isBracket);
-    styleBtn.textContent = isBracket ? '切换括号样式' : '切换简洁样式';
+  fullBtn.addEventListener('click', () => togglePageFull());
+
+  styleSwitch.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('button');
+    if (!btn) return;
+    currentStyle = (btn as HTMLElement).dataset.style as 'bracket' | 'plain' | 'code';
+    applyOutputStyle();
   });
 
   document.getElementById('btn-clear')!.addEventListener('click', () => {
