@@ -4,79 +4,155 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
 <ToolLayout title="JSON 在线查看器" description="JSON 格式化校验工具：在线修复、压缩、树形查看，支持大文本，浏览器本地处理。" currentSlug="json-viewer">
   <h1 slot="header">JSON 在线查看器</h1>
-  <p class="intro">粘贴 JSON，格式化失败时自动尝试修复，输出为可折叠树形视图。</p>
+  <p class="intro">粘贴 JSON，格式化失败时自动尝试修复，输出为可折叠树形视图（Powered by JSONEditor）。</p>
+
+  <details class="json-path-rules">
+    <summary>展开/折叠路径规则（支持 * 通配）</summary>
+    <div class="json-path-rules-body">
+      <div>
+        <label for="path-expand-rules">展开路径（每行一条）</label>
+        <textarea id="path-expand-rules" rows="3" spellcheck="false"></textarea>
+      </div>
+      <div>
+        <label for="path-collapse-rules">折叠路径（每行一条，*.parameters 表示任意层级）</label>
+        <textarea id="path-collapse-rules" rows="3" spellcheck="false"></textarea>
+      </div>
+      <button type="button" class="btn btn-secondary btn-sm" id="btn-apply-path">应用规则并刷新输出</button>
+    </div>
+  </details>
 
   <div class="json-workbench" id="json-workbench">
-  <div class="json-split">
-    <div class="tool-panel">
-      <label for="json-input">输入</label>
-      <textarea id="json-input" class="json-editor" placeholder='{"name": "示例"}'></textarea>
-      <p class="field-hint" id="json-input-stats">0 字符 · 0 行</p>
-      <div class="btn-row">
-        <button class="btn" id="btn-format">格式化</button>
-        <button class="btn btn-secondary" id="btn-minify">压缩</button>
-        <button class="btn btn-secondary" id="btn-validate">校验</button>
-        <button class="btn btn-secondary" id="btn-clear">清空</button>
-      </div>
-      <div id="json-msg"></div>
-    </div>
-    <div class="tool-panel">
-      <div class="json-panel-header">
-        <label>输出</label>
-        <div class="json-header-actions">
-          <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-tree">全部展开</button>
-          <button type="button" class="btn btn-secondary btn-sm" id="btn-json-full">页面全屏</button>
+    <div class="json-split">
+      <div class="tool-panel json-pane">
+        <label for="json-input">输入</label>
+        <div class="json-pane-body">
+          <textarea id="json-input" class="json-editor" placeholder='{"name": "示例"}'></textarea>
+        </div>
+        <div class="json-pane-foot">
+          <p class="field-hint" id="json-input-stats">0 字符 · 0 行</p>
+          <div class="btn-row">
+            <button class="btn" id="btn-format">格式化</button>
+            <button class="btn btn-secondary" id="btn-minify">压缩</button>
+            <button class="btn btn-secondary" id="btn-validate">校验</button>
+            <button class="btn btn-secondary" id="btn-clear">清空</button>
+          </div>
+          <div id="json-msg"></div>
         </div>
       </div>
-      <div class="json-output-wrap json-formatter-host json-style-bracket" id="json-output">
-        <span class="json-placeholder">结果将显示在这里</span>
-      </div>
-      <p class="field-hint" id="json-output-stats">0 字符 · 0 行</p>
-      <div class="json-output-foot">
-        <div class="json-style-switch" id="json-style-switch">
-          <button type="button" class="btn btn-secondary btn-sm active" data-style="bracket">括号</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-style="guide">层级线</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-style="plain">简洁</button>
-          <button type="button" class="btn btn-secondary btn-sm" data-style="code">代码风</button>
+      <div class="tool-panel json-pane">
+        <div class="json-panel-header">
+          <label>输出</label>
+          <div class="json-header-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-tree">全部展开</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-json-full">页面全屏</button>
+          </div>
+        </div>
+        <div class="json-pane-body">
+          <div class="json-output-wrap" id="json-output">
+            <span class="json-placeholder" id="json-placeholder">结果将显示在这里</span>
+            <div id="json-editor-host" hidden></div>
+            <pre class="json-minify" id="json-minify" hidden></pre>
+          </div>
+        </div>
+        <div class="json-pane-foot">
+          <p class="field-hint" id="json-output-stats">0 字符 · 0 行</p>
         </div>
       </div>
     </div>
-  </div>
   </div>
 </ToolLayout>
 
 <script>
   import { jsonrepair } from 'jsonrepair';
-  import JSONFormatter from 'json-formatter-js';
+  import { createJSONEditor, Mode, expandAll, expandMinimal, expandNone } from 'vanilla-jsoneditor';
+
+  type JsonPath = Array<string | number>;
+
+  const PATH_KEY = 'json-viewer-path-rules';
+  const defaultExpand = [
+    'chatData.tools.*.function',
+    'tools.*.function',
+    '*.function.name',
+    '*.function.description',
+  ];
+  const defaultCollapse = ['*.parameters', '*.properties', '*.enum', '*.required'];
 
   const input = document.getElementById('json-input') as HTMLTextAreaElement;
-  const output = document.getElementById('json-output')!;
+  const placeholder = document.getElementById('json-placeholder')!;
+  const editorHost = document.getElementById('json-editor-host') as HTMLDivElement;
+  const minifyEl = document.getElementById('json-minify') as HTMLPreElement;
   const msg = document.getElementById('json-msg')!;
   const inputStats = document.getElementById('json-input-stats')!;
   const outputStats = document.getElementById('json-output-stats')!;
   const toggleBtn = document.getElementById('btn-toggle-tree')!;
   const fullBtn = document.getElementById('btn-json-full')!;
-  const styleSwitch = document.getElementById('json-style-switch')!;
   const workbench = document.getElementById('json-workbench')!;
+  const expandRulesEl = document.getElementById('path-expand-rules') as HTMLTextAreaElement;
+  const collapseRulesEl = document.getElementById('path-collapse-rules') as HTMLTextAreaElement;
 
   let lastData: any = null;
   let treeExpanded = false;
   let previewTimer: number | null = null;
-  let currentStyle: 'bracket' | 'guide' | 'plain' | 'code' = 'bracket';
+  let editor: ReturnType<typeof createJSONEditor> | null = null;
 
-  const pathConfig = {
-    expandPaths: [
-      'chatData.tools.*.function',
-      'chatData.tools.*.function.name',
-      'chatData.tools.*.function.description',
-    ],
-    collapsePaths: [
-      '*.parameters',
-      '*.properties',
-      '*.enum',
-      '*.required',
-    ],
+  let pathConfig = {
+    expandPaths: [...defaultExpand],
+    collapsePaths: [...defaultCollapse],
   };
+
+  function ensureEditor() {
+    if (editor) return editor;
+    editor = createJSONEditor({
+      target: editorHost,
+      props: {
+        mode: Mode.tree,
+        readOnly: true,
+        mainMenuBar: false,
+        navigationBar: false,
+        statusBar: false,
+        content: { json: {} },
+      },
+    });
+    return editor;
+  }
+
+  function showTreeView() {
+    placeholder.hidden = true;
+    minifyEl.hidden = true;
+    editorHost.hidden = false;
+  }
+
+  function showMinifyView(text: string) {
+    placeholder.hidden = true;
+    editorHost.hidden = true;
+    minifyEl.hidden = false;
+    minifyEl.textContent = text;
+  }
+
+  function showPlaceholder() {
+    placeholder.hidden = false;
+    editorHost.hidden = true;
+    minifyEl.hidden = true;
+  }
+
+  function loadPathRules() {
+    try {
+      const raw = localStorage.getItem(PATH_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved.expandPaths?.length) pathConfig.expandPaths = saved.expandPaths;
+        if (saved.collapsePaths?.length) pathConfig.collapsePaths = saved.collapsePaths;
+      }
+    } catch {}
+    expandRulesEl.value = pathConfig.expandPaths.join('\n');
+    collapseRulesEl.value = pathConfig.collapsePaths.join('\n');
+  }
+
+  function savePathRulesFromInputs() {
+    pathConfig.expandPaths = expandRulesEl.value.split('\n').map((s) => s.trim()).filter(Boolean);
+    pathConfig.collapsePaths = collapseRulesEl.value.split('\n').map((s) => s.trim()).filter(Boolean);
+    localStorage.setItem(PATH_KEY, JSON.stringify(pathConfig));
+  }
 
   function showMsg(text: string, type: 'error' | 'success') {
     msg.className = `msg ${type}`;
@@ -93,26 +169,101 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     return raw.slice(0, Number(m[1])).split('\n').length;
   }
 
+  function normalizePath(pathRaw: string) {
+    return pathRaw.replace(/\.\d+\./g, '.*.').replace(/\.\d+$/g, '.*');
+  }
+
+  function pathToKey(path: JsonPath) {
+    return path.map(String).join('.');
+  }
+
+  // 通配匹配：*.xxx 后缀；其余按段匹配，展开规则允许前缀匹配
+  function pathMatches(path: string, pattern: string, mode: 'expand' | 'collapse') {
+    const norm = normalizePath(path);
+    if (pattern.startsWith('*.')) {
+      return norm.endsWith(pattern.slice(1));
+    }
+    const p1 = norm.split('.');
+    const p2 = pattern.split('.');
+    if (p1.length == p2.length) {
+      for (let i = 0; i < p1.length; i += 1) {
+        if (p2[i] == '*') continue;
+        if (p1[i] != p2[i]) return false;
+      }
+      return true;
+    }
+    if (mode == 'expand' && p1.length > p2.length) {
+      for (let i = 0; i < p2.length; i += 1) {
+        if (p2[i] == '*') continue;
+        if (p1[i] != p2[i]) return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  // 收集 JSON 内所有节点路径，供规则批量展开/折叠
+  function collectPaths(data: unknown, prefix: JsonPath = []): JsonPath[] {
+    const paths: JsonPath[] = [];
+    if (prefix.length) paths.push(prefix);
+    if (Array.isArray(data)) {
+      data.forEach((item, i) => {
+        paths.push(...collectPaths(item, [...prefix, i]));
+      });
+    } else if (data != null && typeof data == 'object') {
+      Object.keys(data as object).forEach((key) => {
+        paths.push(...collectPaths((data as Record<string, unknown>)[key], [...prefix, key]));
+      });
+    }
+    return paths;
+  }
+
+  function applyDefaultExpand(ed: ReturnType<typeof createJSONEditor>) {
+    if (treeExpanded) {
+      ed.expand([], expandAll);
+    } else {
+      ed.expand([], expandMinimal);
+    }
+  }
+
+  function applyPathRules() {
+    if (!editor || lastData == null) return;
+    const paths = collectPaths(lastData);
+    for (let turn = 0; turn < 8; turn += 1) {
+      let changed = false;
+      paths.forEach((path) => {
+        const keyPath = pathToKey(path);
+        if (!keyPath) return;
+        if (pathConfig.expandPaths.some((p) => pathMatches(keyPath, p, 'expand'))) {
+          editor!.expand(path);
+          changed = true;
+        }
+      });
+      if (!changed) break;
+    }
+    paths.forEach((path) => {
+      const keyPath = pathToKey(path);
+      if (!keyPath) return;
+      if (pathConfig.collapsePaths.some((p) => pathMatches(keyPath, p, 'collapse'))) {
+        editor!.collapse(path, true);
+      }
+    });
+  }
+
   function renderTree(data: any) {
     lastData = data;
-    output.innerHTML = '';
-    const openDepth = treeExpanded ? 99 : 1;
-    const formatter = new JSONFormatter(data, openDepth, {
-      hoverPreviewEnabled: false,
-      theme: 'light',
-      exposePath: true,
-    });
-    output.appendChild(formatter.render());
+    showTreeView();
+    const ed = ensureEditor();
+    ed.set({ json: data });
+    applyDefaultExpand(ed);
     applyPathRules();
-    applyOutputStyle();
-    const text = JSON.stringify(data, null, 2);
-    updateStats(text, outputStats);
+    updateStats(JSON.stringify(data, null, 2), outputStats);
     toggleBtn.textContent = treeExpanded ? '全部折叠' : '全部展开';
   }
 
   function renderEmpty() {
     lastData = null;
-    output.innerHTML = '<span class="json-placeholder">结果将显示在这里</span>';
+    showPlaceholder();
     updateStats('', outputStats);
   }
 
@@ -145,7 +296,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
         renderTree(data);
       } else {
         const min = JSON.stringify(data);
-        output.innerHTML = `<pre class="json-minify">${min}</pre>`;
+        showMinifyView(min);
         lastData = data;
         updateStats(min, outputStats);
       }
@@ -180,79 +331,17 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     }, 1000);
   }
 
-  function normalizePath(pathRaw: string) {
-    return pathRaw.replace(/\.\d+\./g, '.*.').replace(/\.\d+$/g, '.*');
-  }
-
-  function pathMatches(path: string, pattern: string) {
-    if (pattern.startsWith('*.')) {
-      const tail = pattern.slice(1);
-      return path.endsWith(tail);
-    }
-    const norm = normalizePath(path);
-    const p1 = norm.split('.');
-    const p2 = pattern.split('.');
-    if (p1.length != p2.length) return false;
-    for (let i = 0; i < p1.length; i += 1) {
-      if (p2[i] == '*') continue;
-      if (p1[i] != p2[i]) return false;
-    }
-    return true;
-  }
-
-  function setRowOpen(row: Element, shouldOpen: boolean) {
-    const opened = row.classList.contains('json-formatter-open');
-    if (opened == shouldOpen) return false;
-    const toggler = row.querySelector(':scope > .json-formatter-toggler-link');
-    if (toggler instanceof HTMLElement) {
-      toggler.click();
-      return true;
-    }
-    return false;
-  }
-
-  function applyPathRules() {
-    for (let turn = 0; turn < 8; turn += 1) {
-      let changed = false;
-      const rows = output.querySelectorAll('.json-formatter-row[data-path]');
-      rows.forEach((row) => {
-        const path = row.getAttribute('data-path');
-        if (!path) return;
-        const parsed = JSON.parse(path);
-        const keyPath = Array.isArray(parsed) ? parsed.join('.') : '';
-        if (!keyPath) return;
-        if (pathConfig.expandPaths.some((p) => pathMatches(keyPath, p))) {
-          if (setRowOpen(row, true)) changed = true;
-        }
-      });
-      if (!changed) break;
-    }
-    const rows = output.querySelectorAll('.json-formatter-row[data-path]');
-    rows.forEach((row) => {
-      const path = row.getAttribute('data-path');
-      if (!path) return;
-      const parsed = JSON.parse(path);
-      const keyPath = Array.isArray(parsed) ? parsed.join('.') : '';
-      if (!keyPath) return;
-      if (pathConfig.collapsePaths.some((p) => pathMatches(keyPath, p))) {
-        setRowOpen(row, false);
-      }
-    });
-  }
-
-  function applyOutputStyle() {
-    output.classList.remove('json-style-bracket', 'json-style-guide', 'json-style-plain', 'json-style-code');
-    output.classList.add(`json-style-${currentStyle}`);
-    styleSwitch.querySelectorAll('button').forEach((btn) => {
-      btn.classList.toggle('active', (btn as HTMLElement).dataset.style == currentStyle);
-    });
-  }
-
   function togglePageFull() {
     workbench.classList.toggle('is-json-page-full');
     document.body.classList.toggle('json-page-full', workbench.classList.contains('is-json-page-full'));
     fullBtn.textContent = workbench.classList.contains('is-json-page-full') ? '退出全屏' : '页面全屏';
+    // 全屏切换后刷新编辑器布局
+    if (editor) {
+      window.setTimeout(() => editor!.refresh(), 80);
+    }
   }
+
+  loadPathRules();
 
   input.addEventListener('input', () => {
     updateStats(input.value, inputStats);
@@ -276,18 +365,22 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   });
 
   toggleBtn.addEventListener('click', () => {
-    if (lastData == null) return;
+    if (lastData == null || !editor) return;
     treeExpanded = !treeExpanded;
-    renderTree(lastData);
+    if (treeExpanded) {
+      editor.expand([], expandAll);
+    } else {
+      editor.expand([], expandNone);
+    }
+    toggleBtn.textContent = treeExpanded ? '全部折叠' : '全部展开';
   });
 
   fullBtn.addEventListener('click', () => togglePageFull());
 
-  styleSwitch.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest('button');
-    if (!btn) return;
-    currentStyle = (btn as HTMLElement).dataset.style as 'bracket' | 'guide' | 'plain' | 'code';
-    applyOutputStyle();
+  document.getElementById('btn-apply-path')!.addEventListener('click', () => {
+    savePathRulesFromInputs();
+    if (lastData != null) renderTree(lastData);
+    showMsg('路径规则已应用', 'success');
   });
 
   document.getElementById('btn-clear')!.addEventListener('click', () => {

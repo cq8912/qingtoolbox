@@ -1,6 +1,4 @@
 /* 轻工具箱 - 纸质感工业风 */
-@import '../../node_modules/json-formatter-js/dist/json-formatter.css';
-
 :root {
   --bg: #f3efe6;
   --surface: #faf8f4;
@@ -258,6 +256,8 @@ main {
   font-family: var(--mono);
   font-size: 0.72rem;
   color: var(--primary);
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .tool-mini-name {
@@ -354,8 +354,9 @@ main {
 }
 
 .tool-panel textarea.json-editor {
-  min-height: 50vh;
-  max-height: 70vh;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
   tab-size: 2;
 }
 
@@ -449,14 +450,66 @@ main {
   border-radius: 4px;
 }
 
+.json-path-rules {
+  margin-bottom: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+
+.json-path-rules summary {
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.json-path-rules-body {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.json-path-rules-body textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  resize: vertical;
+}
+
 .json-split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
+  align-items: stretch;
 }
 
 .json-split>.tool-panel {
   min-width: 0;
+}
+
+.json-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 260px);
+  margin-bottom: 0;
+}
+
+.json-pane-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.json-pane-foot {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 8px;
 }
 
 .json-workbench.is-json-page-full {
@@ -464,15 +517,20 @@ main {
   inset: 0;
   z-index: 600;
   background: var(--bg);
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  padding: 20px;
-  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .json-workbench.is-json-page-full .json-split {
-  min-height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.json-workbench.is-json-page-full .json-pane {
+  min-height: 0;
+  height: 100%;
 }
 
 body.json-page-full {
@@ -480,36 +538,42 @@ body.json-page-full {
 }
 
 .json-output-wrap {
-  min-height: 50vh;
-  max-height: 70vh;
-  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: #fff;
-  padding: 12px;
-  font-family: var(--mono);
-  font-size: 0.82rem;
-  line-height: 1.55;
+  display: flex;
+  flex-direction: column;
+  position: relative;
 }
 
-.json-output-wrap .jk {
-  color: #881391;
+#json-editor-host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.json-output-wrap .js {
-  color: #1a7f37;
-}
-
-.json-output-wrap .jn {
-  color: #0550ae;
-}
-
-.json-output-wrap .jb {
-  color: #953800;
-}
-
-.json-output-wrap .jnull {
-  color: #6b6560;
+/* vanilla-jsoneditor 主题微调，贴合站点配色 */
+#json-editor-host .jse-main {
+  flex: 1;
+  min-height: 0;
+  border: none;
+  --jse-font-family-mono: var(--mono);
+  --jse-font-size-mono: 0.82rem;
+  --jse-theme-color: var(--primary);
+  --jse-theme-color-highlight: var(--primary-hover);
+  --jse-key-color: #1a4fb3;
+  --jse-value-color-string: #1a7f37;
+  --jse-value-color-number: #0550ae;
+  --jse-value-color-boolean: #953800;
+  --jse-value-color-null: #6b6560;
+  --jse-background-color: #fff;
+  --jse-hover-background-color: rgba(180, 83, 9, 0.06);
+  --jse-selection-background-color: rgba(180, 83, 9, 0.14);
 }
 
 .json-panel-header {
@@ -535,158 +599,19 @@ body.json-page-full {
 
 .json-placeholder {
   color: var(--muted);
+  padding: 12px;
 }
 
 .json-minify {
+  flex: 1;
+  min-height: 0;
   margin: 0;
+  padding: 12px;
+  overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;
   font-family: var(--mono);
   font-size: 0.82rem;
-}
-
-/* JSON 树：左侧虚线层级 + 括号强调 */
-.json-formatter-host .json-formatter-row {
-  font-family: var(--mono);
-  font-size: 0.82rem;
-  line-height: 1.7;
-}
-
-.json-formatter-host .json-formatter-children {
-  margin-left: 0.35rem;
-  padding-left: 0.9rem;
-  border-left: 1.5px dashed #c9bfb0;
-}
-
-.json-formatter-host .json-formatter-row .json-formatter-row {
-  margin-left: 0;
-}
-
-.json-formatter-host .json-formatter-bracket {
-  color: #92400e;
-  font-weight: 700;
-}
-
-.json-formatter-host .json-formatter-key {
-  color: #1a4fb3;
-  font-weight: 600;
-}
-
-.json-formatter-host .json-formatter-constructor-name {
-  color: var(--muted);
-  font-style: italic;
-}
-
-.json-formatter-host .json-formatter-number {
-  color: #0550ae;
-  font-weight: 600;
-}
-
-.json-formatter-host .json-formatter-row.json-formatter-open>.json-formatter-children {
-  margin-top: 2px;
-  margin-bottom: 6px;
-}
-
-.json-output-foot {
-  margin-top: 8px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.json-style-switch {
-  display: inline-flex;
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: #fff;
-  gap: 4px;
-}
-
-.json-style-switch .btn-sm {
-  border-radius: 999px;
-  border: 1px solid transparent;
-  min-width: 66px;
-}
-
-.json-style-switch .btn-sm.active {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-}
-
-/* 默认：括号层级感更强 */
-.json-formatter-host.json-style-bracket .json-formatter-bracket {
-  display: inline-block;
-  padding: 0 2px;
-  border-radius: 4px;
-  background: #f8efe4;
-  border: 1px solid #efd8bf;
-}
-
-.json-formatter-host.json-style-bracket .json-formatter-children {
-  border-left: 1px dashed #d9c7b1;
-  background-image: linear-gradient(to right, rgba(236, 219, 198, 0.35), transparent 24px);
-}
-
-/* 层级线模式：突出树结构，不强调括号底色 */
-.json-formatter-host.json-style-guide .json-formatter-children {
-  border-left: 2px dashed #bfb6aa;
-  padding-left: 0.75rem;
-}
-
-.json-formatter-host.json-style-guide .json-formatter-bracket {
-  color: #7a7065;
-  background: transparent;
-  padding: 0;
-}
-
-/* 备选：简洁模式 */
-.json-formatter-host.json-style-plain .json-formatter-children {
-  border-left: none;
-  padding-left: 0.55rem;
-}
-
-.json-formatter-host.json-style-plain .json-formatter-bracket {
-  background: transparent;
-  padding: 0;
-  border: none;
-}
-
-/* 代码风：高对比，适合大 JSON 快速扫读 */
-.json-formatter-host.json-style-code {
-  background: #111827;
-  color: #e5e7eb;
-}
-
-.json-formatter-host.json-style-code .json-formatter-row,
-.json-formatter-host.json-style-code .json-formatter-row a,
-.json-formatter-host.json-style-code .json-formatter-row a:hover {
-  color: #e5e7eb;
-}
-
-.json-formatter-host.json-style-code .json-formatter-children {
-  border-left: 1px dashed #4b5563;
-}
-
-.json-formatter-host.json-style-code .json-formatter-key {
-  color: #93c5fd;
-}
-
-.json-formatter-host.json-style-code .json-formatter-string,
-.json-formatter-host.json-style-code .json-formatter-stringifiable {
-  color: #86efac;
-}
-
-.json-formatter-host.json-style-code .json-formatter-number {
-  color: #f9a8d4;
-}
-
-.json-formatter-host.json-style-code .json-formatter-boolean {
-  color: #fca5a5;
-}
-
-.json-formatter-host.json-style-code .json-formatter-bracket {
-  color: #fde68a;
 }
 
 .merge-dropzone {

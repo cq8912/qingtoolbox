@@ -1,7 +1,52 @@
 [
-  {"slug":"json-viewer","name":"JSON 查看器","desc":"格式化、校验、修复与压缩 JSON","icon":"{ }","tags":["开发","JSON"]},
-  {"slug":"base64","name":"Base64","desc":"文本与 Base64 互转，支持 UTF-8","icon":"64","tags":["编码","开发"]},
-  {"slug":"md5","name":"MD5","desc":"在线计算字符串 MD5 哈希值","icon":"#","tags":["加密","哈希"]},
-  {"slug":"image-merge","name":"图片合并","desc":"多图拼接 + 箭头方框文字标注","icon":"拼","tags":["图片","合并"]},
-  {"slug":"image-compress","name":"图片压缩","desc":"本地压缩，可调质量与尺寸","icon":"压","tags":["图片","压缩"]}
+  {
+    "slug": "json-viewer",
+    "name": "JSON 查看器",
+    "desc": "格式化、校验、修复与压缩 JSON",
+    "icon": "J",
+    "tags": [
+      "开发",
+      "JSON"
+    ]
+  },
+  {
+    "slug": "base64",
+    "name": "Base64",
+    "desc": "文本与 Base64 互转，支持 UTF-8",
+    "icon": "64",
+    "tags": [
+      "编码",
+      "开发"
+    ]
+  },
+  {
+    "slug": "md5",
+    "name": "MD5",
+    "desc": "在线计算字符串 MD5 哈希值",
+    "icon": "#",
+    "tags": [
+      "加密",
+      "哈希"
+    ]
+  },
+  {
+    "slug": "image-merge",
+    "name": "图片合并",
+    "desc": "多图拼接 + 箭头方框文字标注",
+    "icon": "拼",
+    "tags": [
+      "图片",
+      "合并"
+    ]
+  },
+  {
+    "slug": "image-compress",
+    "name": "图片压缩",
+    "desc": "本地压缩，可调质量与尺寸",
+    "icon": "压",
+    "tags": [
+      "图片",
+      "压缩"
+    ]
+  }
 ]
