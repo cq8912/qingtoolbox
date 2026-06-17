@@ -35,6 +35,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
       <div class="json-output-foot">
         <div class="json-style-switch" id="json-style-switch">
           <button type="button" class="btn btn-secondary btn-sm active" data-style="bracket">括号</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-style="guide">层级线</button>
           <button type="button" class="btn btn-secondary btn-sm" data-style="plain">简洁</button>
           <button type="button" class="btn btn-secondary btn-sm" data-style="code">代码风</button>
         </div>
@@ -61,7 +62,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   let lastData: any = null;
   let treeExpanded = false;
   let previewTimer: number | null = null;
-  let currentStyle: 'bracket' | 'plain' | 'code' = 'bracket';
+  let currentStyle: 'bracket' | 'guide' | 'plain' | 'code' = 'bracket';
 
   const pathConfig = {
     expandPaths: [
@@ -240,7 +241,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   }
 
   function applyOutputStyle() {
-    output.classList.remove('json-style-bracket', 'json-style-plain', 'json-style-code');
+    output.classList.remove('json-style-bracket', 'json-style-guide', 'json-style-plain', 'json-style-code');
     output.classList.add(`json-style-${currentStyle}`);
     styleSwitch.querySelectorAll('button').forEach((btn) => {
       btn.classList.toggle('active', (btn as HTMLElement).dataset.style == currentStyle);
@@ -285,7 +286,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   styleSwitch.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest('button');
     if (!btn) return;
-    currentStyle = (btn as HTMLElement).dataset.style as 'bracket' | 'plain' | 'code';
+    currentStyle = (btn as HTMLElement).dataset.style as 'bracket' | 'guide' | 'plain' | 'code';
     applyOutputStyle();
   });
 

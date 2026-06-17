@@ -211,7 +211,7 @@ main {
 }
 
 .tool-sidebar {
-  width: 128px;
+  width: 74px;
   flex-shrink: 0;
   position: sticky;
   top: calc(var(--header-h) + 16px);
@@ -226,14 +226,17 @@ main {
 }
 
 .tool-sidebar a {
-  display: block;
-  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
   margin-bottom: 4px;
   border-radius: 6px;
-  font-size: 0.88rem;
+  font-size: 0.8rem;
   color: var(--text);
   text-decoration: none;
   border-left: 2px solid transparent;
+  min-width: 0;
 }
 
 .tool-sidebar a:hover {
@@ -246,6 +249,22 @@ main {
   border-left-color: var(--primary);
   color: var(--primary);
   font-weight: 600;
+}
+
+.tool-mini-icon {
+  flex: 0 0 18px;
+  width: 18px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--primary);
+}
+
+.tool-mini-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tool-sidebar-mobile {
@@ -284,14 +303,19 @@ main {
 
 .tool-page h1 {
   font-size: 1.75rem;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-weight: 700;
+  display: inline-block;
+  vertical-align: baseline;
+  margin-right: 10px;
 }
 
 .tool-page .intro {
   color: var(--muted);
-  margin-bottom: 24px;
-  font-size: 0.95rem;
+  margin-bottom: 16px;
+  font-size: 0.86rem;
+  display: inline-block;
+  vertical-align: baseline;
 }
 
 .tool-panel {
@@ -437,13 +461,13 @@ main {
 
 .json-workbench.is-json-page-full {
   position: fixed;
-  inset: calc(var(--header-h) + 10px) 18px 18px;
+  inset: 0;
   z-index: 600;
   background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
-  padding: 14px;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 20px;
   overflow: auto;
 }
 
@@ -581,7 +605,7 @@ body.json-page-full {
 .json-style-switch .btn-sm {
   border-radius: 999px;
   border: 1px solid transparent;
-  min-width: 72px;
+  min-width: 66px;
 }
 
 .json-style-switch .btn-sm.active {
@@ -596,42 +620,24 @@ body.json-page-full {
   padding: 0 2px;
   border-radius: 4px;
   background: #f8efe4;
+  border: 1px solid #efd8bf;
 }
 
 .json-formatter-host.json-style-bracket .json-formatter-children {
-  border-left: 1.5px dashed #c9bfb0;
+  border-left: 1px dashed #d9c7b1;
+  background-image: linear-gradient(to right, rgba(236, 219, 198, 0.35), transparent 24px);
 }
 
-.json-formatter-host.json-style-bracket .json-formatter-children.json-formatter-object::before {
-  content: "{";
-  display: block;
-  color: #92400e;
-  font-weight: 700;
-  margin-left: -0.68rem;
+/* 层级线模式：突出树结构，不强调括号底色 */
+.json-formatter-host.json-style-guide .json-formatter-children {
+  border-left: 2px dashed #bfb6aa;
+  padding-left: 0.75rem;
 }
 
-.json-formatter-host.json-style-bracket .json-formatter-children.json-formatter-object::after {
-  content: "}";
-  display: block;
-  color: #92400e;
-  font-weight: 700;
-  margin-left: -0.68rem;
-}
-
-.json-formatter-host.json-style-bracket .json-formatter-children.json-formatter-array::before {
-  content: "[";
-  display: block;
-  color: #92400e;
-  font-weight: 700;
-  margin-left: -0.68rem;
-}
-
-.json-formatter-host.json-style-bracket .json-formatter-children.json-formatter-array::after {
-  content: "]";
-  display: block;
-  color: #92400e;
-  font-weight: 700;
-  margin-left: -0.68rem;
+.json-formatter-host.json-style-guide .json-formatter-bracket {
+  color: #7a7065;
+  background: transparent;
+  padding: 0;
 }
 
 /* 备选：简洁模式 */
@@ -643,6 +649,7 @@ body.json-page-full {
 .json-formatter-host.json-style-plain .json-formatter-bracket {
   background: transparent;
   padding: 0;
+  border: none;
 }
 
 /* 代码风：高对比，适合大 JSON 快速扫读 */
