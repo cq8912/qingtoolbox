@@ -1,23 +1,16 @@
 ---
 import BaseLayout from './BaseLayout.astro';
-import InternalLinks from '../components/InternalLinks.astro';
-
-interface Props {
-  title: string;
-  description: string;
-  currentSlug: string;
-}
-
+import ToolSidebar from '../components/ToolSidebar.astro';
+interface Props { title: string; description: string; currentSlug: string; }
 const { title, description, currentSlug } = Astro.props;
 ---
 
-<BaseLayout title={title} description={description}>
-  <article class="tool-page">
-    <slot name="header" />
-    <slot />
-    <section class="section">
-      <h2>相关工具</h2>
-      <InternalLinks currentSlug={currentSlug} />
-    </section>
-  </article>
+<BaseLayout title={title} description={description} wide={true}>
+  <div class="tool-layout">
+    <ToolSidebar currentSlug={currentSlug} />
+    <article class="tool-main tool-page">
+      <slot name="header" />
+      <slot />
+    </article>
+  </div>
 </BaseLayout>

@@ -2,84 +2,125 @@
 import ToolLayout from '../../layouts/ToolLayout.astro';
 ---
 
-<ToolLayout
-  title="JSON 在线查看器"
-  description="免费 JSON 格式化、校验、压缩工具。支持美化缩进与错误提示，数据本地处理不上传。"
-  currentSlug="json-viewer"
->
+<ToolLayout title="JSON 在线查看器" description="免费 JSON 格式化、校验、修复与压缩。支持大文本，浏览器本地处理。" currentSlug="json-viewer">
   <h1 slot="header">JSON 在线查看器</h1>
-  <p class="intro">粘贴 JSON 文本，一键格式化、压缩或校验语法。全部在浏览器本地完成。</p>
+  <p class="intro">粘贴 JSON，支持格式化、压缩、校验与自动修复常见语法错误。</p>
 
-  <div class="tool-panel">
-    <label for="json-input">输入 JSON</label>
-    <textarea id="json-input" placeholder='{"name": "示例", "items": [1, 2, 3]}'></textarea>
-    <div class="btn-row">
-      <button class="btn" id="btn-format">格式化</button>
-      <button class="btn btn-secondary" id="btn-minify">压缩</button>
-      <button class="btn btn-secondary" id="btn-validate">校验</button>
-      <button class="btn btn-secondary" id="btn-clear">清空</button>
+  <div class="json-split">
+    <div class="tool-panel">
+      <label for="json-input">输入</label>
+      <textarea id="json-input" class="json-editor" placeholder='{"name": "示例"}'></textarea>
+      <p class="field-hint" id="json-input-stats">0 字符 · 0 行</p>
+      <div class="btn-row">
+        <button class="btn" id="btn-format">格式化</button>
+        <button class="btn btn-secondary" id="btn-minify">压缩</button>
+        <button class="btn btn-secondary" id="btn-validate">校验</button>
+        <button class="btn btn-secondary" id="btn-repair">修复并格式化</button>
+        <button class="btn btn-secondary" id="btn-clear">清空</button>
+      </div>
+      <div id="json-msg"></div>
     </div>
-    <div id="json-msg"></div>
+    <div class="tool-panel">
+      <label for="json-output">输出</label>
+      <textarea id="json-output" class="json-editor" readonly placeholder="结果将显示在这里"></textarea>
+      <p class="field-hint" id="json-output-stats">0 字符 · 0 行</p>
+    </div>
   </div>
-
-  <div class="tool-panel">
-    <label for="json-output">输出结果</label>
-    <textarea id="json-output" readonly placeholder="结果将显示在这里"></textarea>
-  </div>
-
-  <section class="section">
-    <h2>使用说明</h2>
-    <ul>
-      <li>格式化：将 JSON 整理为带缩进的易读格式</li>
-      <li>压缩：去除空格与换行，适合传输</li>
-      <li>校验：检查 JSON 语法是否正确</li>
-    </ul>
-  </section>
 </ToolLayout>
 
 <script>
+  import { jsonrepair } from 'jsonrepair';
+
   const input = document.getElementById('json-input') as HTMLTextAreaElement;
   const output = document.getElementById('json-output') as HTMLTextAreaElement;
   const msg = document.getElementById('json-msg')!;
+  const inputStats = document.getElementById('json-input-stats')!;
+  const outputStats = document.getElementById('json-output-stats')!;
 
   function showMsg(text: string, type: 'error' | 'success') {
     msg.className = `msg ${type}`;
     msg.textContent = text;
   }
 
-  function parseJson() {
-    const raw = input.value.trim();
-    if (!raw) {
-      showMsg('请输入 JSON 内容', 'error');
-      return null;
-    }
+  function updateStats(el: HTMLTextAreaElement, statsEl: HTMLElement) {
+    const v = el.value;
+    statsEl.textContent = `${v.length} 字符 · ${v ? v.split('\n').length : 0} 行`;
+  }
+
+  function getErrorLine(raw: string, err: Error) {
+    const m = err.message.match(/position\s+(\d+)/i);
+    if (!m) return null;
+    const pos = Number(m[1]);
+    const before = raw.slice(0, pos);
+    return before.split('\n').length;
+  }
+
+  function parseJson(raw: string) {
     try {
-      return JSON.parse(raw);
+      return { data: JSON.parse(raw), error: null as Error | null };
     } catch (e) {
-      showMsg(`JSON 解析失败：${(e as Error).message}`, 'error');
-      return null;
+      return { data: null, error: e as Error };
     }
   }
 
+  function handleParse(raw: string, successMsg: string) {
+    if (!raw.trim()) {
+      showMsg('请输入 JSON 内容', 'error');
+      return null;
+    }
+    const { data, error } = parseJson(raw);
+    if (error) {
+      const line = getErrorLine(raw, error);
+      showMsg(line ? `第 ${line} 行附近：${error.message}` : error.message, 'error');
+      input.classList.add('error-line');
+      return null;
+    }
+    input.classList.remove('error-line');
+    showMsg(successMsg, 'success');
+    return data;
+  }
+
+  input.addEventListener('input', () => updateStats(input, inputStats));
+
   document.getElementById('btn-format')!.addEventListener('click', () => {
-    const data = parseJson();
+    const data = handleParse(input.value.trim(), '格式化成功');
     if (data == null) return;
     output.value = JSON.stringify(data, null, 2);
-    showMsg('格式化成功', 'success');
+    updateStats(output, outputStats);
   });
 
   document.getElementById('btn-minify')!.addEventListener('click', () => {
-    const data = parseJson();
+    const data = handleParse(input.value.trim(), '压缩成功');
     if (data == null) return;
     output.value = JSON.stringify(data);
-    showMsg('压缩成功', 'success');
+    updateStats(output, outputStats);
   });
 
   document.getElementById('btn-validate')!.addEventListener('click', () => {
-    const data = parseJson();
+    const data = handleParse(input.value.trim(), '✓ JSON 语法正确');
     if (data == null) return;
     output.value = '';
-    showMsg('✓ JSON 语法正确', 'success');
+    updateStats(output, outputStats);
+  });
+
+  document.getElementById('btn-repair')!.addEventListener('click', () => {
+    const raw = input.value.trim();
+    if (!raw) {
+      showMsg('请输入 JSON 内容', 'error');
+      return;
+    }
+    try {
+      const repaired = jsonrepair(raw);
+      const data = JSON.parse(repaired);
+      input.value = JSON.stringify(data, null, 2);
+      output.value = input.value;
+      input.classList.remove('error-line');
+      updateStats(input, inputStats);
+      updateStats(output, outputStats);
+      showMsg('已修复并格式化', 'success');
+    } catch (e) {
+      showMsg(`修复失败：${(e as Error).message}`, 'error');
+    }
   });
 
   document.getElementById('btn-clear')!.addEventListener('click', () => {
@@ -87,5 +128,8 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     output.value = '';
     msg.textContent = '';
     msg.className = '';
+    input.classList.remove('error-line');
+    updateStats(input, inputStats);
+    updateStats(output, outputStats);
   });
 </script>

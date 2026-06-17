@@ -2,110 +2,174 @@
 import ToolLayout from '../../layouts/ToolLayout.astro';
 ---
 
-<ToolLayout
-  title="图片压缩"
-  description="在线图片压缩工具，支持 JPG/PNG/WebP。浏览器本地压缩，不上传服务器，可调节质量。"
-  currentSlug="image-compress"
->
+<ToolLayout title="图片压缩" description="在线图片压缩，支持质量、尺寸比例调节，浏览器本地处理。" currentSlug="image-compress">
   <h1 slot="header">图片压缩</h1>
-  <p class="intro">上传图片，调节质量后压缩导出。适合减小体积用于网页或分享。</p>
+  <p class="intro">上传图片，调节质量与尺寸比例，实时预览压缩效果。</p>
 
-  <div class="tool-panel">
-    <label for="compress-file">选择图片</label>
-    <input type="file" id="compress-file" accept="image/*" />
-    <div style="margin-top:12px">
-      <label for="compress-quality">质量：<span id="quality-val">80</span>%</label>
-      <input type="range" id="compress-quality" min="10" max="100" value="80" style="width:100%;margin-top:8px" />
+  <div class="compress-workspace">
+    <div class="compress-panel">
+      <div class="field-label">原图</div>
+      <div class="img-slot" id="slot-original"><span>等待上传</span></div>
+      <div class="img-meta" id="meta-original">—</div>
     </div>
-    <div style="margin-top:12px">
-      <label for="compress-format">输出格式</label>
-      <select id="compress-format" style="margin-top:8px">
-        <option value="image/jpeg">JPEG</option>
-        <option value="image/webp">WebP</option>
-        <option value="image/png">PNG</option>
-      </select>
+
+    <div class="compress-panel compress-controls">
+      <label class="upload-zone" id="upload-zone">
+        <input type="file" id="compress-file" accept="image/*" />
+        点击上传图片
+      </label>
+      <div>
+        <label class="field-label">质量 <span class="range-val" id="quality-val">80%</span></label>
+        <div class="range-row">
+          <input type="range" id="compress-quality" min="10" max="100" value="80" />
+        </div>
+      </div>
+      <div>
+        <label class="field-label">尺寸比例 <span class="range-val" id="scale-val">100%</span></label>
+        <div class="range-row">
+          <input type="range" id="compress-scale" min="10" max="100" value="100" />
+        </div>
+      </div>
+      <div>
+        <label class="field-label" for="compress-format">输出格式</label>
+        <select id="compress-format">
+          <option value="image/jpeg">JPEG</option>
+          <option value="image/webp">WebP</option>
+          <option value="image/png">PNG</option>
+        </select>
+      </div>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn" id="btn-compress">压缩</button>
+        <a class="btn btn-secondary" id="btn-compress-dl" download="compressed.jpg" style="display:none">下载</a>
+      </div>
+      <div id="compress-msg"></div>
     </div>
-    <div class="btn-row">
-      <button class="btn" id="btn-compress">压缩</button>
-      <a class="btn btn-secondary" id="btn-compress-dl" download="compressed.jpg" style="display:none">下载</a>
+
+    <div class="compress-panel">
+      <div class="field-label">压缩后</div>
+      <div class="img-slot" id="slot-compressed"><span>等待压缩</span></div>
+      <div class="img-meta" id="meta-compressed">—</div>
     </div>
-    <div id="compress-msg"></div>
-    <p id="compress-stats" style="margin-top:8px;color:var(--muted);font-size:0.9rem"></p>
   </div>
 
-  <div class="tool-panel" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-    <div>
-      <label>原图</label>
-      <img id="img-original" style="max-width:100%;margin-top:8px;border-radius:6px" alt="原图" />
-    </div>
-    <div>
-      <label>压缩后</label>
-      <img id="img-compressed" style="max-width:100%;margin-top:8px;border-radius:6px" alt="压缩后" />
-    </div>
-  </div>
+  <div class="compress-summary" id="compress-summary" style="display:none"></div>
 </ToolLayout>
 
 <script>
   const fileInput = document.getElementById('compress-file') as HTMLInputElement;
+  const uploadZone = document.getElementById('upload-zone')!;
   const quality = document.getElementById('compress-quality') as HTMLInputElement;
   const qualityVal = document.getElementById('quality-val')!;
+  const scale = document.getElementById('compress-scale') as HTMLInputElement;
+  const scaleVal = document.getElementById('scale-val')!;
   const format = document.getElementById('compress-format') as HTMLSelectElement;
-  const imgOriginal = document.getElementById('img-original') as HTMLImageElement;
-  const imgCompressed = document.getElementById('img-compressed') as HTMLImageElement;
+  const slotOriginal = document.getElementById('slot-original')!;
+  const slotCompressed = document.getElementById('slot-compressed')!;
+  const metaOriginal = document.getElementById('meta-original')!;
+  const metaCompressed = document.getElementById('meta-compressed')!;
+  const summary = document.getElementById('compress-summary')!;
   const download = document.getElementById('btn-compress-dl') as HTMLAnchorElement;
   const msg = document.getElementById('compress-msg')!;
-  const stats = document.getElementById('compress-stats')!;
 
-  let originalSize = 0;
+  let currentFile: File | null = null;
+  let origW = 0, origH = 0;
+  let debounceTimer: ReturnType<typeof setTimeout>;
 
-  quality.addEventListener('input', () => {
-    qualityVal.textContent = quality.value;
-  });
+  function fmtSize(bytes: number) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+  }
 
   function showMsg(text: string, type: 'error' | 'success') {
     msg.className = `msg ${type}`;
     msg.textContent = text;
   }
 
-  fileInput.addEventListener('change', () => {
-    const file = fileInput.files?.[0];
-    if (!file) return;
-    originalSize = file.size;
-    imgOriginal.src = URL.createObjectURL(file);
-  });
+  function setSlot(slot: HTMLElement, src: string | null, placeholder: string) {
+    slot.innerHTML = src ? `<img src="${src}" alt="" />` : `<span>${placeholder}</span>`;
+  }
 
-  document.getElementById('btn-compress')!.addEventListener('click', () => {
-    const file = fileInput.files?.[0];
-    if (!file) {
-      showMsg('请先选择图片', 'error');
-      return;
-    }
-
+  function doCompress() {
+    if (!currentFile) return;
     const img = new Image();
     img.onload = () => {
+      const ratio = Number(scale.value) / 100;
+      const w = Math.round(img.width * ratio);
+      const h = Math.round(img.height * ratio);
       const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, w, h);
 
       const mime = format.value;
       const q = Number(quality.value) / 100;
       const dataUrl = canvas.toDataURL(mime, q);
-      imgCompressed.src = dataUrl;
-      download.href = dataUrl;
 
+      setSlot(slotCompressed, dataUrl, '');
+      download.href = dataUrl;
       const ext = mime.split('/')[1] == 'jpeg' ? 'jpg' : mime.split('/')[1];
       download.download = `compressed.${ext}`;
       download.style.display = 'inline-block';
 
-      // 估算压缩后大小
       const base64 = dataUrl.split(',')[1];
       const compressedSize = Math.round((base64.length * 3) / 4);
-      const saved = originalSize ? Math.round((1 - compressedSize / originalSize) * 100) : 0;
-      stats.textContent = `原图 ${(originalSize / 1024).toFixed(1)} KB → 压缩后约 ${(compressedSize / 1024).toFixed(1)} KB（节省约 ${saved}%）`;
+      const saved = currentFile ? Math.round((1 - compressedSize / currentFile.size) * 100) : 0;
+
+      metaOriginal.textContent = `${origW}×${origH} px · ${fmtSize(currentFile!.size)}`;
+      metaCompressed.textContent = `${w}×${h} px · 约 ${fmtSize(compressedSize)}`;
+      summary.style.display = 'flex';
+      summary.innerHTML = `
+        <span>原图：<strong>${fmtSize(currentFile!.size)}</strong> · ${origW}×${origH}</span>
+        <span>压缩后：<strong>${fmtSize(compressedSize)}</strong> · ${w}×${h}</span>
+        <span>节省：<strong>${saved}%</strong></span>
+        <span>质量 ${quality.value}% · 比例 ${scale.value}% · ${ext.toUpperCase()}</span>
+      `;
       showMsg('压缩完成', 'success');
     };
+    img.src = URL.createObjectURL(currentFile);
+  }
+
+  function onFileSelect(file: File) {
+    currentFile = file;
+    origW = 0;
+    origH = 0;
+    const img = new Image();
+    img.onload = () => {
+      origW = img.width;
+      origH = img.height;
+      setSlot(slotOriginal, img.src, '');
+      metaOriginal.textContent = `${origW}×${origH} px · ${fmtSize(file.size)}`;
+      doCompress();
+    };
     img.src = URL.createObjectURL(file);
+  }
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (file) onFileSelect(file);
   });
+
+  uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); });
+  uploadZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) onFileSelect(file);
+  });
+
+  quality.addEventListener('input', () => {
+    qualityVal.textContent = quality.value + '%';
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(doCompress, 300);
+  });
+
+  scale.addEventListener('input', () => {
+    scaleVal.textContent = scale.value + '%';
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(doCompress, 300);
+  });
+
+  format.addEventListener('change', doCompress);
+  document.getElementById('btn-compress')!.addEventListener('click', doCompress);
 </script>
