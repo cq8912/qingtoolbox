@@ -481,7 +481,47 @@ main {
 
 .json-minify { margin: 0; white-space: pre-wrap; word-break: break-all; font-family: var(--mono); font-size: 0.82rem; }
 
-.json-formatter-host .json-formatter-row { font-family: var(--mono); font-size: 0.82rem; }
+/* JSON 树：左侧虚线层级 + 括号强调 */
+.json-formatter-host .json-formatter-row {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+
+.json-formatter-host .json-formatter-children {
+  margin-left: 0.35rem;
+  padding-left: 0.9rem;
+  border-left: 1.5px dashed #c9bfb0;
+}
+
+.json-formatter-host .json-formatter-row .json-formatter-row {
+  margin-left: 0;
+}
+
+.json-formatter-host .json-formatter-bracket {
+  color: #92400e;
+  font-weight: 700;
+}
+
+.json-formatter-host .json-formatter-key {
+  color: #1a4fb3;
+  font-weight: 600;
+}
+
+.json-formatter-host .json-formatter-constructor-name {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.json-formatter-host .json-formatter-number {
+  color: #0550ae;
+  font-weight: 600;
+}
+
+.json-formatter-host .json-formatter-row.json-formatter-open > .json-formatter-children {
+  margin-top: 2px;
+  margin-bottom: 6px;
+}
 
 .merge-dropzone {
   border: 2px dashed var(--border);
