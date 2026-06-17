@@ -10,6 +10,9 @@ type Opportunity = {
 
 const REPORT_DIR = 'reports/daily';
 const TOOLS_FILE = 'src/data/tools.json';
+const SUMMARY_FILE = path.join(REPORT_DIR, 'autopilot-summary.json');
+const MAX_PAGES = Number(process.env.SEO_AUTOPILOT_MAX_PAGES || 3);
+const MIN_IMPRESSIONS = Number(process.env.SEO_AUTOPILOT_MIN_IMPRESSIONS || 20);
 
 const TOOL_TEMPLATE: Record<string, (q: string) => string> = {
   'json-viewer': (q) => `JSON 格式化校验工具，支持${q}、在线修复压缩与树形查看，浏览器本地处理。`,
@@ -47,6 +50,7 @@ function pickBestBySlug(rows: Opportunity[]) {
   for (const row of rows) {
     const slug = parseSlug(row.page);
     if (!slug || !(slug in TOOL_TEMPLATE)) continue;
+    if ((row.impressions || 0) < MIN_IMPRESSIONS) continue;
     const query = normalizeQuery(row.query || '');
     if (!query || query.length < 2) continue;
     const prev = best.get(slug);
@@ -101,12 +105,31 @@ async function main() {
     return;
   }
   const rows = JSON.parse(fs.readFileSync(oppFile, 'utf-8')) as Opportunity[];
-  const best = pickBestBySlug(rows);
+  const allBest = pickBestBySlug(rows);
+  const best = new Map<string, Opportunity>(Array.from(allBest.entries()).slice(0, MAX_PAGES));
   let touched = 0;
+  const touchedPages: string[] = [];
+  const touchedKeywords: string[] = [];
   for (const [slug, row] of best) {
-    if (row.query && updateToolPage(slug, row.query)) touched += 1;
+    if (row.query && updateToolPage(slug, row.query)) {
+      touched += 1;
+      touchedPages.push(slug);
+      touchedKeywords.push(row.query);
+    }
   }
   if (updateToolsJson(best)) touched += 1;
+  fs.mkdirSync(REPORT_DIR, { recursive: true });
+  fs.writeFileSync(
+    SUMMARY_FILE,
+    JSON.stringify({
+      touched,
+      maxPages: MAX_PAGES,
+      minImpressions: MIN_IMPRESSIONS,
+      pages: touchedPages,
+      keywords: touchedKeywords,
+      targets: best.size,
+    }, null, 2),
+  );
   console.log(`auto-optimize done, touched=${touched}, targets=${best.size}`);
 }
 

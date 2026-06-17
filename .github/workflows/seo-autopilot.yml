@@ -7,6 +7,8 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  SEO_AUTOPILOT_MAX_PAGES: 3
+  SEO_AUTOPILOT_MIN_IMPRESSIONS: 20
 
 jobs:
   autopilot:
@@ -46,6 +48,7 @@ jobs:
             echo "No changes"
             exit 0
           fi
-          git add src/pages/tools/*.astro src/data/tools.json
-          git commit -m "seo: 自动优化工具页文案"
+          git add src/pages/tools/*.astro src/data/tools.json reports/daily/autopilot-summary.json
+          pages=$(node -e "const fs=require('fs');const p='reports/daily/autopilot-summary.json';if(!fs.existsSync(p)){console.log('none');process.exit(0)};const j=JSON.parse(fs.readFileSync(p,'utf8'));console.log((j.pages||[]).slice(0,3).join(',' )||'none')")
+          git commit -m "seo: 自动优化工具页文案 (${pages})"
           git push origin main
