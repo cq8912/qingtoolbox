@@ -46,15 +46,13 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
   <div class="tool-panel annotate-panel" id="annotate-panel" style="display:none">
     <div class="annotate-toolbar">
-      <button type="button" class="btn btn-secondary btn-sm tool-btn active" data-tool="select">选择</button>
       <button type="button" class="btn btn-secondary btn-sm tool-btn" data-tool="rect">方框</button>
       <button type="button" class="btn btn-secondary btn-sm tool-btn" data-tool="arrow">箭头</button>
-      <button type="button" class="btn btn-secondary btn-sm tool-btn" data-tool="polyline">折线</button>
       <button type="button" class="btn btn-secondary btn-sm tool-btn" data-tool="text">文字</button>
-      <button type="button" class="btn btn-secondary btn-sm" id="btn-finish-poly">完成折线</button>
       <button type="button" class="btn btn-secondary btn-sm" id="btn-undo">撤销</button>
       <button type="button" class="btn btn-secondary btn-sm" id="btn-del">删除</button>
     </div>
+    <p class="field-hint annotate-hint">默认选择模式，可拖动标注；单击工具画一次，双击连续画；Delete 删除选中</p>
     <div class="fabric-wrap">
       <canvas id="fabric-canvas"></canvas>
     </div>
@@ -111,25 +109,41 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   async function loadToAnnotator(dataUrl: string) {
     if (annotator) annotator.dispose();
     annotator = new ImageAnnotator(fabricEl);
+    annotator.onAfterDraw = () => clearToolActive();
     await annotator.setBackground(dataUrl);
     annotatePanel.style.display = 'block';
     download.style.display = 'inline-block';
     download.href = dataUrl;
   }
 
-  // 工具栏只绑定一次，避免重复 merge 时叠监听器
+  // 工具栏：单击画一次，双击连续画
   let toolsBound = false;
+  function clearToolActive() {
+    document.querySelectorAll('.tool-btn').forEach((b) => b.classList.remove('active'));
+  }
+  function activateTool(tool: string, persistent: boolean) {
+    document.querySelectorAll('.tool-btn').forEach((b) => {
+      b.classList.toggle('active', persistent && (b as HTMLElement).dataset.tool == tool);
+    });
+    annotator?.setTool(tool as 'rect' | 'arrow' | 'text' | 'select', persistent);
+  }
   function bindAnnotateTools() {
     if (toolsBound) return;
     toolsBound = true;
     document.querySelectorAll('.tool-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tool-btn').forEach((b) => b.classList.remove('active'));
-        btn.classList.add('active');
-        annotator?.setTool((btn as HTMLElement).dataset.tool as any);
+      let timer: ReturnType<typeof setTimeout>;
+      btn.addEventListener('click', (e) => {
+        if ((e as MouseEvent).detail > 1) return;
+        timer = setTimeout(() => {
+          activateTool((btn as HTMLElement).dataset.tool!, false);
+        }, 220);
+      });
+      btn.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        clearTimeout(timer);
+        activateTool((btn as HTMLElement).dataset.tool!, true);
       });
     });
-    document.getElementById('btn-finish-poly')!.onclick = () => annotator?.finishPolyline();
     document.getElementById('btn-undo')!.onclick = () => annotator?.undo();
     document.getElementById('btn-del')!.onclick = () => annotator?.deleteSelected();
     download.onclick = () => {

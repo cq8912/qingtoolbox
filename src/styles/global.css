@@ -46,14 +46,30 @@ a:hover {
 
 .container {
   max-width: 960px;
+  width: 100%;
   margin: 0 auto;
   padding: 0 20px;
 }
 
 .container-wide {
-  max-width: 1200px;
+  max-width: 1360px;
+  width: 100%;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 24px;
+}
+
+.site-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding: 32px 0 28px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.hero {
+  text-align: center;
+  padding: 32px 0 40px;
 }
 
 .site-header {
@@ -97,21 +113,8 @@ a:hover {
 
 main {
   flex: 1;
+  width: 100%;
   padding: 28px 0 48px;
-}
-
-.site-footer {
-  margin-top: auto;
-  border-top: 1px solid var(--border);
-  padding: 32px 0 28px;
-  color: var(--muted);
-  font-size: 0.85rem;
-  text-align: center;
-}
-
-.hero {
-  text-align: center;
-  padding: 32px 0 40px;
 }
 
 .hero h1 {
@@ -129,8 +132,13 @@ main {
 
 .tool-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
+  width: 100%;
+}
+
+.home-content {
+  width: 100%;
 }
 
 .tool-card {
@@ -263,6 +271,13 @@ main {
 .tool-main {
   flex: 1;
   min-width: 0;
+  width: 100%;
+}
+
+.tool-page .tool-panel,
+.tool-page .json-split,
+.tool-page .compress-workspace,
+.tool-page .annotate-panel {
   width: 100%;
 }
 
@@ -531,6 +546,17 @@ main {
   max-width: 100%;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  background: #fff;
+  text-align: center;
+}
+
+.fabric-wrap canvas {
+  max-width: 100%;
+  height: auto !important;
+}
+
+.annotate-hint {
+  margin-bottom: 10px;
 }
 
 .compress-btn-row {
@@ -696,6 +722,16 @@ main {
 
   .json-split,
   .compress-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .tool-grid {
     grid-template-columns: 1fr;
   }
 }
