@@ -1,0 +1,28 @@
+{
+  "name": "qingtoolbox",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "lint": "astro check",
+    "seo:fetch-gsc": "tsx scripts/seo/fetch-gsc.ts",
+    "seo:analyze": "tsx scripts/seo/analyze-gsc.ts",
+    "seo:daily-report": "tsx scripts/seo/daily-report.ts",
+    "qa:links": "tsx scripts/qa/check-links.ts",
+    "qa:metadata": "tsx scripts/qa/check-metadata.ts"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.4.0",
+    "astro": "^5.7.10",
+    "js-md5": "^0.8.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "googleapis": "^148.0.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

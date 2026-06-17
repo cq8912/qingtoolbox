@@ -1,0 +1,91 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="JSON 在线查看器"
+  description="免费 JSON 格式化、校验、压缩工具。支持美化缩进与错误提示，数据本地处理不上传。"
+  currentSlug="json-viewer"
+>
+  <h1 slot="header">JSON 在线查看器</h1>
+  <p class="intro">粘贴 JSON 文本，一键格式化、压缩或校验语法。全部在浏览器本地完成。</p>
+
+  <div class="tool-panel">
+    <label for="json-input">输入 JSON</label>
+    <textarea id="json-input" placeholder='{"name": "示例", "items": [1, 2, 3]}'></textarea>
+    <div class="btn-row">
+      <button class="btn" id="btn-format">格式化</button>
+      <button class="btn btn-secondary" id="btn-minify">压缩</button>
+      <button class="btn btn-secondary" id="btn-validate">校验</button>
+      <button class="btn btn-secondary" id="btn-clear">清空</button>
+    </div>
+    <div id="json-msg"></div>
+  </div>
+
+  <div class="tool-panel">
+    <label for="json-output">输出结果</label>
+    <textarea id="json-output" readonly placeholder="结果将显示在这里"></textarea>
+  </div>
+
+  <section class="section">
+    <h2>使用说明</h2>
+    <ul>
+      <li>格式化：将 JSON 整理为带缩进的易读格式</li>
+      <li>压缩：去除空格与换行，适合传输</li>
+      <li>校验：检查 JSON 语法是否正确</li>
+    </ul>
+  </section>
+</ToolLayout>
+
+<script>
+  const input = document.getElementById('json-input') as HTMLTextAreaElement;
+  const output = document.getElementById('json-output') as HTMLTextAreaElement;
+  const msg = document.getElementById('json-msg')!;
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+  }
+
+  function parseJson() {
+    const raw = input.value.trim();
+    if (!raw) {
+      showMsg('请输入 JSON 内容', 'error');
+      return null;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      showMsg(`JSON 解析失败：${(e as Error).message}`, 'error');
+      return null;
+    }
+  }
+
+  document.getElementById('btn-format')!.addEventListener('click', () => {
+    const data = parseJson();
+    if (data == null) return;
+    output.value = JSON.stringify(data, null, 2);
+    showMsg('格式化成功', 'success');
+  });
+
+  document.getElementById('btn-minify')!.addEventListener('click', () => {
+    const data = parseJson();
+    if (data == null) return;
+    output.value = JSON.stringify(data);
+    showMsg('压缩成功', 'success');
+  });
+
+  document.getElementById('btn-validate')!.addEventListener('click', () => {
+    const data = parseJson();
+    if (data == null) return;
+    output.value = '';
+    showMsg('✓ JSON 语法正确', 'success');
+  });
+
+  document.getElementById('btn-clear')!.addEventListener('click', () => {
+    input.value = '';
+    output.value = '';
+    msg.textContent = '';
+    msg.className = '';
+  });
+</script>

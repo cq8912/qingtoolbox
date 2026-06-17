@@ -1,0 +1,29 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import tools from '../data/tools.json';
+---
+
+<BaseLayout
+  title="轻工具箱"
+  description="免费在线工具：JSON 查看器、Base64 编解码、MD5 加密、图片合并压缩、Clash 节点合并。浏览器本地处理，安全快速。"
+>
+  <section class="hero">
+    <h1>轻工具箱</h1>
+    <p>常用开发与生活小工具，全部在浏览器本地运行，数据不上传服务器</p>
+  </section>
+
+  <div class="tool-grid">
+    {tools.map((tool) => (
+      <a href={`/tools/${tool.slug}`} class="tool-card">
+        <div class="icon">{tool.icon}</div>
+        <h3>{tool.name}</h3>
+        <p>{tool.desc}</p>
+        <div class="tags">
+          {tool.tags.map((tag) => (
+            <span class="tag">{tag}</span>
+          ))}
+        </div>
+      </a>
+    ))}
+  </div>
+</BaseLayout>

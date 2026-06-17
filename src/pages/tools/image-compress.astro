@@ -1,0 +1,111 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="图片压缩"
+  description="在线图片压缩工具，支持 JPG/PNG/WebP。浏览器本地压缩，不上传服务器，可调节质量。"
+  currentSlug="image-compress"
+>
+  <h1 slot="header">图片压缩</h1>
+  <p class="intro">上传图片，调节质量后压缩导出。适合减小体积用于网页或分享。</p>
+
+  <div class="tool-panel">
+    <label for="compress-file">选择图片</label>
+    <input type="file" id="compress-file" accept="image/*" />
+    <div style="margin-top:12px">
+      <label for="compress-quality">质量：<span id="quality-val">80</span>%</label>
+      <input type="range" id="compress-quality" min="10" max="100" value="80" style="width:100%;margin-top:8px" />
+    </div>
+    <div style="margin-top:12px">
+      <label for="compress-format">输出格式</label>
+      <select id="compress-format" style="margin-top:8px">
+        <option value="image/jpeg">JPEG</option>
+        <option value="image/webp">WebP</option>
+        <option value="image/png">PNG</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-compress">压缩</button>
+      <a class="btn btn-secondary" id="btn-compress-dl" download="compressed.jpg" style="display:none">下载</a>
+    </div>
+    <div id="compress-msg"></div>
+    <p id="compress-stats" style="margin-top:8px;color:var(--muted);font-size:0.9rem"></p>
+  </div>
+
+  <div class="tool-panel" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div>
+      <label>原图</label>
+      <img id="img-original" style="max-width:100%;margin-top:8px;border-radius:6px" alt="原图" />
+    </div>
+    <div>
+      <label>压缩后</label>
+      <img id="img-compressed" style="max-width:100%;margin-top:8px;border-radius:6px" alt="压缩后" />
+    </div>
+  </div>
+</ToolLayout>
+
+<script>
+  const fileInput = document.getElementById('compress-file') as HTMLInputElement;
+  const quality = document.getElementById('compress-quality') as HTMLInputElement;
+  const qualityVal = document.getElementById('quality-val')!;
+  const format = document.getElementById('compress-format') as HTMLSelectElement;
+  const imgOriginal = document.getElementById('img-original') as HTMLImageElement;
+  const imgCompressed = document.getElementById('img-compressed') as HTMLImageElement;
+  const download = document.getElementById('btn-compress-dl') as HTMLAnchorElement;
+  const msg = document.getElementById('compress-msg')!;
+  const stats = document.getElementById('compress-stats')!;
+
+  let originalSize = 0;
+
+  quality.addEventListener('input', () => {
+    qualityVal.textContent = quality.value;
+  });
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+  }
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    originalSize = file.size;
+    imgOriginal.src = URL.createObjectURL(file);
+  });
+
+  document.getElementById('btn-compress')!.addEventListener('click', () => {
+    const file = fileInput.files?.[0];
+    if (!file) {
+      showMsg('请先选择图片', 'error');
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+
+      const mime = format.value;
+      const q = Number(quality.value) / 100;
+      const dataUrl = canvas.toDataURL(mime, q);
+      imgCompressed.src = dataUrl;
+      download.href = dataUrl;
+
+      const ext = mime.split('/')[1] == 'jpeg' ? 'jpg' : mime.split('/')[1];
+      download.download = `compressed.${ext}`;
+      download.style.display = 'inline-block';
+
+      // 估算压缩后大小
+      const base64 = dataUrl.split(',')[1];
+      const compressedSize = Math.round((base64.length * 3) / 4);
+      const saved = originalSize ? Math.round((1 - compressedSize / originalSize) * 100) : 0;
+      stats.textContent = `原图 ${(originalSize / 1024).toFixed(1)} KB → 压缩后约 ${(compressedSize / 1024).toFixed(1)} KB（节省约 ${saved}%）`;
+      showMsg('压缩完成', 'success');
+    };
+    img.src = URL.createObjectURL(file);
+  });
+</script>

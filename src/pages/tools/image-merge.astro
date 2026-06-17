@@ -1,0 +1,94 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="图片合并"
+  description="在线多张图片横向或纵向拼接合并，纯浏览器处理，图片不上传服务器。"
+  currentSlug="image-merge"
+>
+  <h1 slot="header">图片合并</h1>
+  <p class="intro">选择多张图片，横向或纵向拼接成一张图，支持 PNG/JPG 导出。</p>
+
+  <div class="tool-panel">
+    <label for="merge-files">选择图片（可多选）</label>
+    <input type="file" id="merge-files" accept="image/*" multiple />
+    <div style="margin-top:12px">
+      <label for="merge-direction">拼接方向</label>
+      <select id="merge-direction" style="margin-top:8px">
+        <option value="horizontal">横向（左右）</option>
+        <option value="vertical">纵向（上下）</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-merge">开始合并</button>
+      <a class="btn btn-secondary" id="btn-download" download="merged.png" style="display:none;text-align:center;line-height:1.6">下载图片</a>
+    </div>
+    <div id="merge-msg"></div>
+  </div>
+
+  <div class="tool-panel">
+    <label>预览</label>
+    <canvas id="merge-canvas" style="max-width:100%;border:1px solid var(--border);border-radius:6px;margin-top:8px"></canvas>
+  </div>
+</ToolLayout>
+
+<script>
+  const fileInput = document.getElementById('merge-files') as HTMLInputElement;
+  const direction = document.getElementById('merge-direction') as HTMLSelectElement;
+  const canvas = document.getElementById('merge-canvas') as HTMLCanvasElement;
+  const download = document.getElementById('btn-download') as HTMLAnchorElement;
+  const msg = document.getElementById('merge-msg')!;
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+  }
+
+  function loadImage(file: File): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  document.getElementById('btn-merge')!.addEventListener('click', async () => {
+    const files = fileInput.files;
+    if (!files || files.length < 2) {
+      showMsg('请至少选择 2 张图片', 'error');
+      return;
+    }
+
+    try {
+      const images = await Promise.all(Array.from(files).map(loadImage));
+      const isH = direction.value == 'horizontal';
+      const totalW = isH ? images.reduce((s, i) => s + i.width, 0) : Math.max(...images.map((i) => i.width));
+      const totalH = isH ? Math.max(...images.map((i) => i.height)) : images.reduce((s, i) => s + i.height, 0);
+
+      canvas.width = totalW;
+      canvas.height = totalH;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, totalW, totalH);
+
+      let offset = 0;
+      for (const img of images) {
+        if (isH) {
+          ctx.drawImage(img, offset, 0);
+          offset += img.width;
+        } else {
+          ctx.drawImage(img, 0, offset);
+          offset += img.height;
+        }
+      }
+
+      download.href = canvas.toDataURL('image/png');
+      download.style.display = 'inline-block';
+      showMsg(`合并完成，共 ${images.length} 张图片`, 'success');
+    } catch {
+      showMsg('图片加载失败，请检查文件格式', 'error');
+    }
+  });
+</script>

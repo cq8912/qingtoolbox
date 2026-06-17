@@ -1,0 +1,74 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="MD5 在线加密"
+  description="免费 MD5 哈希计算工具。输入文本即时生成 32 位 MD5 值，浏览器本地计算。"
+  currentSlug="md5"
+>
+  <h1 slot="header">MD5 在线加密</h1>
+  <p class="intro">输入文本，计算 MD5 哈希值（32 位小写十六进制）。</p>
+
+  <div class="tool-panel">
+    <label for="md5-input">输入文本</label>
+    <textarea id="md5-input" placeholder="请输入要计算 MD5 的文本"></textarea>
+    <div class="btn-row">
+      <button class="btn" id="btn-md5">计算 MD5</button>
+      <button class="btn btn-secondary" id="btn-md5-copy">复制结果</button>
+    </div>
+    <div id="md5-msg"></div>
+  </div>
+
+  <div class="tool-panel">
+    <label for="md5-output">MD5 结果（32 位小写）</label>
+    <input type="text" id="md5-output" readonly placeholder="哈希值将显示在这里" />
+  </div>
+
+  <section class="section">
+    <h2>说明</h2>
+    <ul>
+      <li>MD5 为单向哈希，不可逆推原文</li>
+      <li>不适用于密码存储等高安全场景，仅作校验、去重等用途</li>
+      <li>示例：<code>hello</code> → <code>5d41402abc4b2a76b9719d911017c592</code></li>
+    </ul>
+  </section>
+</ToolLayout>
+
+<script>
+  import { md5 } from 'js-md5';
+
+  const input = document.getElementById('md5-input') as HTMLTextAreaElement;
+  const output = document.getElementById('md5-output') as HTMLInputElement;
+  const msg = document.getElementById('md5-msg')!;
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+  }
+
+  document.getElementById('btn-md5')!.addEventListener('click', () => {
+    const val = input.value;
+    if (!val) {
+      showMsg('请输入文本', 'error');
+      return;
+    }
+    output.value = md5(val);
+    showMsg('计算完成', 'success');
+  });
+
+  document.getElementById('btn-md5-copy')!.addEventListener('click', async () => {
+    if (!output.value) return;
+    await navigator.clipboard.writeText(output.value);
+    showMsg('已复制', 'success');
+  });
+
+  // 输入时实时计算
+  input.addEventListener('input', () => {
+    if (input.value) {
+      output.value = md5(input.value);
+    } else {
+      output.value = '';
+    }
+  });
+</script>

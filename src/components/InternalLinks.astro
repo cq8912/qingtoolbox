@@ -1,0 +1,16 @@
+---
+import tools from '../data/tools.json';
+
+interface Props {
+  currentSlug: string;
+}
+
+const { currentSlug } = Astro.props;
+const related = tools.filter((t) => t.slug != currentSlug).slice(0, 4);
+---
+
+<div class="related-links">
+  {related.map((t) => (
+    <a href={`/tools/${t.slug}`}>{t.name}</a>
+  ))}
+</div>

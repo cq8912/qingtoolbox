@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.astro/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+
+# 本地开发 / 内部文件，不公开
+.cursor/
+reports/
+STATUS.md
+plan.md
+AGENTS.md

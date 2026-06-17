@@ -1,0 +1,81 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="Base64 编解码"
+  description="在线 Base64 编码与解码，支持中文 UTF-8。免费、本地处理、无需安装。"
+  currentSlug="base64"
+>
+  <h1 slot="header">Base64 编解码</h1>
+  <p class="intro">文本与 Base64 字符串互转，支持中文等多字节字符。</p>
+
+  <div class="tool-panel">
+    <label for="b64-text">原文</label>
+    <textarea id="b64-text" placeholder="输入要编码的文本"></textarea>
+    <div class="btn-row">
+      <button class="btn" id="btn-encode">编码 →</button>
+      <button class="btn btn-secondary" id="btn-decode">← 解码</button>
+      <button class="btn btn-secondary" id="btn-copy">复制结果</button>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <label for="b64-result">Base64 结果</label>
+    <textarea id="b64-result" placeholder="Base64 编码结果"></textarea>
+    <div id="b64-msg"></div>
+  </div>
+
+  <section class="section">
+    <h2>示例</h2>
+    <ul>
+      <li>原文：<code>你好世界</code> → 编码后：<code>5L2g5aW95LiW55WM</code></li>
+      <li>常用于数据传输、API 鉴权参数等场景</li>
+    </ul>
+  </section>
+</ToolLayout>
+
+<script>
+  const textEl = document.getElementById('b64-text') as HTMLTextAreaElement;
+  const resultEl = document.getElementById('b64-result') as HTMLTextAreaElement;
+  const msgEl = document.getElementById('b64-msg')!;
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msgEl.className = `msg ${type}`;
+    msgEl.textContent = text;
+  }
+
+  // UTF-8 安全的 Base64 编解码
+  function utf8ToB64(str: string) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+
+  function b64ToUtf8(str: string) {
+    return decodeURIComponent(escape(atob(str)));
+  }
+
+  document.getElementById('btn-encode')!.addEventListener('click', () => {
+    try {
+      resultEl.value = utf8ToB64(textEl.value);
+      showMsg('编码成功', 'success');
+    } catch (e) {
+      showMsg(`编码失败：${(e as Error).message}`, 'error');
+    }
+  });
+
+  document.getElementById('btn-decode')!.addEventListener('click', () => {
+    try {
+      textEl.value = b64ToUtf8(resultEl.value.trim());
+      showMsg('解码成功', 'success');
+    } catch (e) {
+      showMsg(`解码失败：请检查 Base64 格式`, 'error');
+    }
+  });
+
+  document.getElementById('btn-copy')!.addEventListener('click', async () => {
+    const val = resultEl.value || textEl.value;
+    if (!val) return;
+    await navigator.clipboard.writeText(val);
+    showMsg('已复制到剪贴板', 'success');
+  });
+</script>

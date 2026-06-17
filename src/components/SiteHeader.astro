@@ -1,0 +1,17 @@
+---
+const links = [
+  { href: '/', label: '首页' },
+  { href: '/about', label: '关于' },
+];
+---
+
+<header class="site-header">
+  <div class="container inner">
+    <a href="/" class="logo">轻工具箱</a>
+    <nav class="nav">
+      {links.map((l) => (
+        <a href={l.href}>{l.label}</a>
+      ))}
+    </nav>
+  </div>
+</header>
