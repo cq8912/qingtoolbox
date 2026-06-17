@@ -1,5 +1,15 @@
 [
   {
+    "slug": "hanzi-write",
+    "name": "汉字笔顺",
+    "desc": "笔顺动画 + 田字格跟写练习",
+    "icon": "字",
+    "tags": [
+      "教育",
+      "汉字"
+    ]
+  },
+  {
     "slug": "json-viewer",
     "name": "JSON 查看器",
     "desc": "格式化、校验、修复与压缩 JSON",

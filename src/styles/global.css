@@ -354,10 +354,14 @@ main {
 }
 
 .tool-panel textarea.json-editor {
+  tab-size: 2;
+}
+
+/* 仅 JSON 查看器 flex 布局里撑满高度 */
+.json-pane-body .json-editor {
   flex: 1;
   min-height: 0;
   height: 100%;
-  tab-size: 2;
 }
 
 .tool-panel textarea.output-readonly {
@@ -450,29 +454,22 @@ main {
   border-radius: 4px;
 }
 
-.json-path-rules {
-  margin-bottom: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-}
-
-.json-path-rules summary {
-  cursor: pointer;
-  font-size: 0.88rem;
-  color: var(--muted);
-}
-
-.json-path-rules-body {
+.json-expand-rules {
   margin-top: 10px;
-  display: grid;
-  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
 }
 
-.json-path-rules-body textarea {
+.json-expand-rules label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.json-expand-rules textarea {
   width: 100%;
-  min-height: 72px;
+  min-height: 52px;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -612,6 +609,148 @@ body.json-page-full {
   word-break: break-all;
   font-family: var(--mono);
   font-size: 0.82rem;
+}
+
+/* 汉字笔顺练习 */
+.hanzi-add-panel {
+  margin-bottom: 16px;
+}
+
+.hanzi-add-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.hanzi-text-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1.1rem;
+  font-family: var(--font);
+}
+
+.hanzi-char-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.hanzi-char-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.hanzi-char-chip.active {
+  border-color: var(--primary);
+  background: #fdf6ee;
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.hanzi-char-chip em {
+  font-style: normal;
+  font-size: 0.9rem;
+  color: var(--muted);
+  padding: 0 2px;
+}
+
+.hanzi-char-chip em:hover {
+  color: #c0392b;
+}
+
+.hanzi-current {
+  margin-bottom: 12px;
+  font-size: 1rem;
+}
+
+.hanzi-current strong {
+  font-size: 1.6rem;
+  margin: 0 6px;
+  color: var(--primary);
+}
+
+.hanzi-dual {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.hanzi-box-panel h2 {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.hanzi-tip {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.tianzi-wrap {
+  width: min(100%, 300px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  padding: 8px;
+  border: 2px solid var(--primary);
+  border-radius: 4px;
+  background:
+    linear-gradient(to right, transparent 49.5%, #d9d2c6 49.5%, #d9d2c6 50.5%, transparent 50.5%),
+    linear-gradient(to bottom, transparent 49.5%, #d9d2c6 49.5%, #d9d2c6 50.5%, transparent 50.5%),
+    #fffef9;
+  box-shadow: inset 0 0 0 1px #efe6d8;
+}
+
+.tianzi-wrap.hanzi-clickable {
+  cursor: pointer;
+}
+
+.tianzi-wrap.hanzi-clickable:hover {
+  border-color: var(--primary-hover);
+}
+
+.tianzi-target {
+  width: 100%;
+  height: 100%;
+}
+
+.hanzi-actions {
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.hanzi-status {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 0.88rem;
+  color: var(--muted);
+  min-height: 1.4em;
+}
+
+.hanzi-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 24px;
+}
+
+.hanzi-parent-tips ul {
+  padding-left: 1.2rem;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+@media (max-width: 768px) {
+  .hanzi-dual {
+    grid-template-columns: 1fr;
+  }
 }
 
 .merge-dropzone {

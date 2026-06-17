@@ -1,0 +1,259 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="汉字笔顺练习"
+  description="在线汉字笔顺演示与跟写练习，田字格书写，本地保存生字本，适合小学生与家长辅导。"
+  currentSlug="hanzi-write"
+>
+  <h1 slot="header">汉字笔顺练习</h1>
+  <p class="intro">添加要学的汉字，先看笔顺动画，再在田字格里跟写。生字保存在本机浏览器，不会上传。</p>
+
+  <div class="tool-panel hanzi-add-panel">
+    <label for="hanzi-input">添加生字</label>
+    <div class="hanzi-add-row">
+      <input type="text" id="hanzi-input" class="hanzi-text-input" placeholder="输入汉字，如：学、好、春" maxlength="20" />
+      <button type="button" class="btn" id="btn-add-char">添加</button>
+    </div>
+    <p class="field-hint">可一次输入多个字，自动拆成单字加入生字本。</p>
+    <div class="hanzi-char-list" id="hanzi-char-list"></div>
+  </div>
+
+  <div class="hanzi-practice-grid" id="hanzi-practice-area" hidden>
+    <div class="hanzi-current">
+      正在练习：<strong id="hanzi-current-char">—</strong>
+      <span class="field-hint" id="hanzi-stroke-hint"></span>
+    </div>
+
+    <div class="hanzi-dual">
+      <div class="hanzi-box-panel">
+        <h2>笔顺示范</h2>
+        <p class="hanzi-tip">点击田字格，按笔画顺序播放</p>
+        <div class="tianzi-wrap hanzi-clickable" id="hanzi-demo-wrap" title="点击播放笔顺">
+          <div id="hanzi-demo" class="tianzi-target"></div>
+        </div>
+        <div class="btn-row hanzi-actions">
+          <button type="button" class="btn btn-secondary" id="btn-replay">再看一遍</button>
+          <button type="button" class="btn btn-secondary" id="btn-loop">循环演示</button>
+        </div>
+      </div>
+
+      <div class="hanzi-box-panel">
+        <h2>跟写练习</h2>
+        <p class="hanzi-tip">按提示笔画在格子里描红，写错 2 次会高亮正确笔画</p>
+        <div class="tianzi-wrap" id="hanzi-practice-wrap">
+          <div id="hanzi-practice" class="tianzi-target"></div>
+        </div>
+        <div class="btn-row hanzi-actions">
+          <button type="button" class="btn" id="btn-start-quiz">开始跟写</button>
+          <button type="button" class="btn btn-secondary" id="btn-reset-quiz">重置</button>
+        </div>
+        <p class="hanzi-status" id="hanzi-status">点「开始跟写」后在格子里书写</p>
+      </div>
+    </div>
+  </div>
+
+  <p class="hanzi-empty" id="hanzi-empty">还没有生字，先在上方输入并添加。</p>
+
+  <section class="section hanzi-parent-tips">
+    <h2>给家长的小提示</h2>
+    <ul>
+      <li>先让孩子看一遍笔顺动画，注意起笔、行笔方向。</li>
+      <li>跟写时不必一次写对，错两次会自动提示正确笔画。</li>
+      <li>每天练 3～5 个新字即可，重复比贪多更有效。</li>
+    </ul>
+  </section>
+</ToolLayout>
+
+<script>
+  import HanziWriter from 'hanzi-writer';
+
+  const STORAGE_KEY = 'hanzi-learn-chars';
+  const GRID = 280;
+
+  const inputEl = document.getElementById('hanzi-input') as HTMLInputElement;
+  const listEl = document.getElementById('hanzi-char-list')!;
+  const practiceArea = document.getElementById('hanzi-practice-area')!;
+  const emptyEl = document.getElementById('hanzi-empty')!;
+  const currentCharEl = document.getElementById('hanzi-current-char')!;
+  const strokeHintEl = document.getElementById('hanzi-stroke-hint')!;
+  const statusEl = document.getElementById('hanzi-status')!;
+  const demoWrap = document.getElementById('hanzi-demo-wrap')!;
+  const demoEl = document.getElementById('hanzi-demo')!;
+  const practiceEl = document.getElementById('hanzi-practice')!;
+
+  let chars: string[] = [];
+  let activeChar = '';
+  let demoWriter: HanziWriter | null = null;
+  let practiceWriter: HanziWriter | null = null;
+
+  const baseOpts = {
+    width: GRID,
+    height: GRID,
+    padding: 18,
+    strokeColor: '#92400e',
+    radicalColor: '#168F16',
+    outlineColor: '#d9d2c6',
+    drawingColor: '#b45309',
+    drawingWidth: 8,
+    strokeWidth: 3,
+    showHintAfterMisses: 2,
+    highlightOnComplete: true,
+  };
+
+  function loadChars() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) chars = JSON.parse(raw);
+    } catch {
+      chars = [];
+    }
+  }
+
+  function saveChars() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(chars));
+  }
+
+  function extractHanzi(text: string) {
+    return [...text].filter((ch) => /\p{Script=Han}/u.test(ch));
+  }
+
+  function renderCharList() {
+    listEl.innerHTML = '';
+    chars.forEach((ch) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `hanzi-char-chip${ch == activeChar ? ' active' : ''}`;
+      btn.innerHTML = `<span>${ch}</span><em aria-label="删除">×</em>`;
+      btn.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).tagName == 'EM') removeChar(ch);
+        else selectChar(ch);
+      });
+      listEl.appendChild(btn);
+    });
+    const hasChars = chars.length > 0;
+    practiceArea.hidden = !hasChars;
+    emptyEl.hidden = hasChars;
+  }
+
+  function destroyWriters() {
+    demoWriter?.cancelQuiz();
+    practiceWriter?.cancelQuiz();
+    demoWriter = null;
+    practiceWriter = null;
+    demoEl.innerHTML = '';
+    practiceEl.innerHTML = '';
+  }
+
+  function selectChar(ch: string) {
+    activeChar = ch;
+    currentCharEl.textContent = ch;
+    strokeHintEl.textContent = '';
+    statusEl.textContent = '加载字形数据…';
+    renderCharList();
+    destroyWriters();
+
+    demoWriter = HanziWriter.create(demoEl, ch, {
+      ...baseOpts,
+      showOutline: true,
+      showCharacter: true,
+      delayBetweenStrokes: 350,
+      strokeAnimationSpeed: 1,
+    });
+
+    practiceWriter = HanziWriter.create(practiceEl, ch, {
+      ...baseOpts,
+      showOutline: true,
+      showCharacter: false,
+    });
+
+    HanziWriter.loadCharacterData(ch).then((data) => {
+      const n = data?.strokes?.length || 0;
+      strokeHintEl.textContent = n ? `共 ${n} 笔` : '';
+      statusEl.textContent = '点「开始跟写」后在格子里书写';
+    }).catch(() => {
+      statusEl.textContent = '该字暂不支持，请换一个试试';
+    });
+  }
+
+  function removeChar(ch: string) {
+    chars = chars.filter((c) => c != ch);
+    saveChars();
+    if (activeChar == ch) {
+      activeChar = '';
+      destroyWriters();
+      if (chars.length) selectChar(chars[0]);
+      else renderCharList();
+      return;
+    }
+    renderCharList();
+  }
+
+  function addChars() {
+    const found = extractHanzi(inputEl.value.trim());
+    if (!found.length) {
+      statusEl.textContent = '请输入至少一个汉字';
+      return;
+    }
+    found.forEach((ch) => {
+      if (!chars.includes(ch)) chars.push(ch);
+    });
+    saveChars();
+    inputEl.value = '';
+    renderCharList();
+    if (!activeChar && chars.length) selectChar(chars[chars.length - 1]);
+  }
+
+  function playDemo() {
+    if (!demoWriter) return;
+    demoWriter.pauseAnimation();
+    demoWriter.cancelQuiz();
+    demoWriter.animateCharacter();
+  }
+
+  function startLoop() {
+    if (!demoWriter) return;
+    demoWriter.loopCharacterAnimation();
+  }
+
+  function startQuiz() {
+    if (!practiceWriter) return;
+    practiceWriter.cancelQuiz();
+    statusEl.textContent = '请按笔顺在格子里书写';
+    practiceWriter.quiz({
+      onMistake: (d) => {
+        statusEl.textContent = `第 ${d.strokeNum + 1} 笔写错了，还剩 ${d.strokesRemaining} 笔`;
+      },
+      onCorrectStroke: (d) => {
+        statusEl.textContent = `第 ${d.strokeNum + 1} 笔正确！还剩 ${d.strokesRemaining} 笔`;
+      },
+      onComplete: (s) => {
+        statusEl.textContent = s.totalMistakes
+          ? `写完了「${s.character}」，共错了 ${s.totalMistakes} 笔，很棒！`
+          : `太棒了！「${s.character}」全部写对！`;
+      },
+    });
+  }
+
+  function resetQuiz() {
+    if (!practiceWriter || !activeChar) return;
+    practiceWriter.cancelQuiz();
+    practiceWriter.setCharacter(activeChar);
+    statusEl.textContent = '已重置，可再次开始跟写';
+  }
+
+  loadChars();
+  renderCharList();
+  if (chars.length) selectChar(chars[0]);
+
+  document.getElementById('btn-add-char')!.addEventListener('click', addChars);
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key == 'Enter') addChars();
+  });
+  demoWrap.addEventListener('click', playDemo);
+  document.getElementById('btn-replay')!.addEventListener('click', playDemo);
+  document.getElementById('btn-loop')!.addEventListener('click', startLoop);
+  document.getElementById('btn-start-quiz')!.addEventListener('click', startQuiz);
+  document.getElementById('btn-reset-quiz')!.addEventListener('click', resetQuiz);
+</script>
