@@ -40,7 +40,6 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
           <div class="json-output-wrap" id="json-output">
             <span class="json-placeholder" id="json-placeholder">结果将显示在这里</span>
             <div id="json-editor-host" hidden></div>
-            <pre class="json-minify" id="json-minify" hidden></pre>
           </div>
         </div>
         <div class="json-pane-foot">
@@ -62,7 +61,6 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   const input = document.getElementById('json-input') as HTMLTextAreaElement;
   const placeholder = document.getElementById('json-placeholder')!;
   const editorHost = document.getElementById('json-editor-host') as HTMLDivElement;
-  const minifyEl = document.getElementById('json-minify') as HTMLPreElement;
   const msg = document.getElementById('json-msg')!;
   const inputStats = document.getElementById('json-input-stats')!;
   const outputStats = document.getElementById('json-output-stats')!;
@@ -97,21 +95,12 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
   function showTreeView() {
     placeholder.hidden = true;
-    minifyEl.hidden = true;
     editorHost.hidden = false;
-  }
-
-  function showMinifyView(text: string) {
-    placeholder.hidden = true;
-    editorHost.hidden = true;
-    minifyEl.hidden = false;
-    minifyEl.textContent = text;
   }
 
   function showPlaceholder() {
     placeholder.hidden = false;
     editorHost.hidden = true;
-    minifyEl.hidden = true;
   }
 
   function loadPathRules() {
@@ -181,13 +170,48 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     return paths;
   }
 
+  function isDescendantKey(keyPath: string, ancestor: string) {
+    return keyPath != ancestor && keyPath.startsWith(ancestor + '.');
+  }
+
   function applyPathRules() {
     if (!editor || lastData == null || !pathConfig.expandPaths.length) return;
     const paths = collectPaths(lastData);
+    const matched: JsonPath[] = [];
+
     paths.forEach((path) => {
       const keyPath = pathToKey(path);
       if (pathConfig.expandPaths.some((p) => pathMatchesExpand(keyPath, p))) {
+        matched.push(path);
+      }
+    });
+
+    const matchedKeys = new Set(matched.map(pathToKey));
+    editor.expand([], expandNone);
+
+    // 只展开匹配路径及其祖先，不展开同级其它分支
+    const expandKeys = new Set<string>();
+    matched.forEach((path) => {
+      for (let i = 1; i <= path.length; i += 1) {
+        expandKeys.add(pathToKey(path.slice(0, i)));
+      }
+    });
+
+    paths
+      .filter((path) => expandKeys.has(pathToKey(path)))
+      .sort((a, b) => a.length - b.length)
+      .forEach((path) => {
         editor!.expand(path.map((p) => String(p)));
+      });
+
+    // 匹配层级以下的子节点全部折叠，不展开下一层
+    paths.forEach((path) => {
+      const keyPath = pathToKey(path);
+      for (const mk of matchedKeys) {
+        if (isDescendantKey(keyPath, mk)) {
+          editor!.collapse(path.map((p) => String(p)), true);
+          break;
+        }
       }
     });
   }
@@ -245,7 +269,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     }
   }
 
-  function runFormat(pretty: boolean) {
+  function runFormat() {
     const raw = input.value.trim();
     if (!raw) {
       showMsg('请输入 JSON 内容', 'error');
@@ -253,19 +277,33 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     }
     try {
       const { data, repaired, errDesc } = parseOrRepair(raw);
-      if (pretty) {
-        input.value = JSON.stringify(data, null, 2);
-        updateStats(input.value, inputStats);
-        renderTree(data);
-      } else {
-        const min = JSON.stringify(data);
-        showMinifyView(min);
-        lastData = data;
-        updateStats(min, outputStats);
-      }
+      input.value = JSON.stringify(data, null, 2);
+      updateStats(input.value, inputStats);
+      renderTree(data);
       input.classList.remove('error-line');
       if (repaired && errDesc) showMsg(`${errDesc} → 已自动修复`, 'success');
-      else showMsg(pretty ? '格式化成功' : '压缩成功', 'success');
+      else showMsg('格式化成功', 'success');
+    } catch (e) {
+      input.classList.add('error-line');
+      showMsg((e as Error).message, 'error');
+      renderEmpty();
+    }
+  }
+
+  function runMinify() {
+    const raw = input.value.trim();
+    if (!raw) {
+      showMsg('请输入 JSON 内容', 'error');
+      return;
+    }
+    try {
+      const { data, repaired, errDesc } = parseOrRepair(raw);
+      input.value = JSON.stringify(data);
+      updateStats(input.value, inputStats);
+      renderTree(data);
+      input.classList.remove('error-line');
+      if (repaired && errDesc) showMsg(`${errDesc} → 已自动修复并压缩`, 'success');
+      else showMsg('压缩成功（已写入输入框）', 'success');
     } catch (e) {
       input.classList.add('error-line');
       showMsg((e as Error).message, 'error');
@@ -310,8 +348,8 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
   expandRulesEl.addEventListener('input', schedulePathApply);
 
-  document.getElementById('btn-format')!.addEventListener('click', () => runFormat(true));
-  document.getElementById('btn-minify')!.addEventListener('click', () => runFormat(false));
+  document.getElementById('btn-format')!.addEventListener('click', runFormat);
+  document.getElementById('btn-minify')!.addEventListener('click', runMinify);
 
   document.getElementById('btn-validate')!.addEventListener('click', () => {
     const raw = input.value.trim();

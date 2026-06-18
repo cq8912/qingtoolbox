@@ -357,13 +357,6 @@ main {
   tab-size: 2;
 }
 
-/* 仅 JSON 查看器 flex 布局里撑满高度 */
-.json-pane-body .json-editor {
-  flex: 1;
-  min-height: 0;
-  height: 100%;
-}
-
 .tool-panel textarea.output-readonly {
   background: var(--bg);
   color: var(--text);
@@ -785,17 +778,35 @@ main {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
+  min-height: 0;
 }
 
 .json-split>.tool-panel {
   min-width: 0;
 }
 
+/* 工作区不超出视口，方便查看输入与展开路径 */
+.json-workbench:not(.is-json-page-full) {
+  height: calc(100vh - 11.5rem);
+  max-height: calc(100vh - 11.5rem);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.json-workbench:not(.is-json-page-full) .json-split {
+  flex: 1;
+  min-height: 0;
+}
+
 .json-pane {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 260px);
+  min-height: 0;
+  max-height: 100%;
   margin-bottom: 0;
+  overflow: hidden;
 }
 
 .json-pane-body {
@@ -803,12 +814,28 @@ main {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .json-pane-foot {
   flex-shrink: 0;
   margin-top: auto;
   padding-top: 8px;
+  max-height: 42%;
+  overflow-y: auto;
+}
+
+.json-pane-body .json-editor {
+  flex: 1;
+  min-height: 72px;
+  height: auto;
+  max-height: 100%;
+  overflow: auto;
+  resize: none;
+}
+
+.json-expand-rules textarea {
+  max-height: 72px;
 }
 
 .json-workbench.is-json-page-full {
