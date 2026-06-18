@@ -23,7 +23,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
           </div>
           <div id="json-msg"></div>
           <div class="json-expand-rules">
-            <label for="path-expand-rules">展开路径（每行一条，支持 *，如 tools.*.function 只展开该层）</label>
+            <label for="path-expand-rules">展开路径（每行一条，支持后缀：function、tools.*.function）</label>
             <textarea id="path-expand-rules" rows="2" spellcheck="false" placeholder="tools.*.function"></textarea>
           </div>
         </div>
@@ -52,7 +52,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
 <script>
   import { jsonrepair } from 'jsonrepair';
-  import { createJSONEditor, Mode, expandAll, expandMinimal, expandNone } from 'vanilla-jsoneditor';
+  import { createJSONEditor, Mode, expandAll, expandNone } from 'vanilla-jsoneditor';
 
   type JsonPath = Array<string | number>;
 
@@ -71,6 +71,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
   let lastData: any = null;
   let treeExpanded = false;
+  let forceManualCollapse = false;
   let previewTimer: number | null = null;
   let pathTimer: number | null = null;
   let editor: ReturnType<typeof createJSONEditor> | null = null;
@@ -142,17 +143,112 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     return path.map(String).join('.');
   }
 
-  // 只匹配该层级，不展开子级（段数须一致，* 通配一段）
+  // 后缀/简写匹配：function、tools.*.function、chatData.tools.*.function 均可
   function pathMatchesExpand(path: string, pattern: string) {
     const norm = normalizePath(path);
+    const pat = pattern.trim();
+    if (!pat) return false;
+
+    if (!pat.includes('.')) {
+      const segs = norm.split('.');
+      return segs[segs.length - 1] == pat;
+    }
+
+    const p2 = pat.split('.');
     const p1 = norm.split('.');
-    const p2 = pattern.split('.');
-    if (p1.length != p2.length) return false;
-    for (let i = 0; i < p1.length; i += 1) {
+    if (p1.length < p2.length) return false;
+
+    const off = p1.length - p2.length;
+    for (let i = 0; i < p2.length; i += 1) {
       if (p2[i] == '*') continue;
-      if (p1[i] != p2[i]) return false;
+      if (p1[off + i] != p2[i]) return false;
     }
     return true;
+  }
+
+  function pathKeyToJsonPath(key: string): JsonPath {
+    return key.split('.').map((seg) => (/^\d+$/.test(seg) ? Number(seg) : seg));
+  }
+
+  function forceCollapseAll() {
+    if (!editor || lastData == null) return;
+    editor.expand([], expandNone);
+    const paths = collectPaths(lastData).sort((a, b) => b.length - a.length);
+    paths.forEach((path) => {
+      editor!.collapse(path.map((p) => String(p)), true);
+    });
+  }
+
+  function applyPathRules() {
+    if (!editor || lastData == null || !pathConfig.expandPaths.length) return;
+    const paths = collectPaths(lastData);
+    const matched: JsonPath[] = [];
+
+    paths.forEach((path) => {
+      const keyPath = pathToKey(path);
+      if (pathConfig.expandPaths.some((p) => pathMatchesExpand(keyPath, p))) {
+        matched.push(path);
+      }
+    });
+
+    if (!matched.length) return;
+
+    const matchedKeys = new Set(matched.map(pathToKey));
+    forceCollapseAll();
+
+    const expandKeys = new Set<string>();
+    matched.forEach((path) => {
+      for (let i = 1; i <= path.length; i += 1) {
+        expandKeys.add(pathToKey(path.slice(0, i)));
+      }
+    });
+
+    [...expandKeys]
+      .map(pathKeyToJsonPath)
+      .sort((a, b) => a.length - b.length)
+      .forEach((path) => {
+        editor!.expand(path.map((p) => String(p)));
+      });
+
+    paths
+      .sort((a, b) => b.length - a.length)
+      .forEach((path) => {
+        const keyPath = pathToKey(path);
+        for (const mk of matchedKeys) {
+          if (isDescendantKey(keyPath, mk)) {
+            editor!.collapse(path.map((p) => String(p)), true);
+            break;
+          }
+        }
+      });
+  }
+
+  function runExpandState() {
+    if (!editor || lastData == null) return;
+    if (treeExpanded) {
+      editor.expand([], expandAll);
+      toggleBtn.textContent = '全部折叠';
+      return;
+    }
+    if (forceManualCollapse) {
+      forceCollapseAll();
+      toggleBtn.textContent = '全部展开';
+      return;
+    }
+    if (pathConfig.expandPaths.length) {
+      forceCollapseAll();
+      applyPathRules();
+    } else {
+      forceCollapseAll();
+    }
+    toggleBtn.textContent = '全部展开';
+  }
+
+  function applyTreeExpandState() {
+    if (!editor || lastData == null) return;
+    editor.set({ json: lastData });
+    // ponytail: set 后等一帧再改展开态，否则 vanilla-jsoneditor 不生效
+    requestAnimationFrame(() => runExpandState());
   }
 
   function collectPaths(data: unknown, prefix: JsonPath = []): JsonPath[] {
@@ -174,74 +270,19 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     return keyPath != ancestor && keyPath.startsWith(ancestor + '.');
   }
 
-  function applyPathRules() {
-    if (!editor || lastData == null || !pathConfig.expandPaths.length) return;
-    const paths = collectPaths(lastData);
-    const matched: JsonPath[] = [];
-
-    paths.forEach((path) => {
-      const keyPath = pathToKey(path);
-      if (pathConfig.expandPaths.some((p) => pathMatchesExpand(keyPath, p))) {
-        matched.push(path);
-      }
-    });
-
-    const matchedKeys = new Set(matched.map(pathToKey));
-    editor.expand([], expandNone);
-
-    // 只展开匹配路径及其祖先，不展开同级其它分支
-    const expandKeys = new Set<string>();
-    matched.forEach((path) => {
-      for (let i = 1; i <= path.length; i += 1) {
-        expandKeys.add(pathToKey(path.slice(0, i)));
-      }
-    });
-
-    paths
-      .filter((path) => expandKeys.has(pathToKey(path)))
-      .sort((a, b) => a.length - b.length)
-      .forEach((path) => {
-        editor!.expand(path.map((p) => String(p)));
-      });
-
-    // 匹配层级以下的子节点全部折叠，不展开下一层
-    paths.forEach((path) => {
-      const keyPath = pathToKey(path);
-      for (const mk of matchedKeys) {
-        if (isDescendantKey(keyPath, mk)) {
-          editor!.collapse(path.map((p) => String(p)), true);
-          break;
-        }
-      }
-    });
-  }
-
-  // 重置树展开状态（全部展开 / 默认 / 按规则）
-  function applyTreeExpandState() {
-    if (!editor || lastData == null) return;
-    editor.set({ json: lastData });
-    if (treeExpanded) {
-      editor.expand([], expandAll);
-    } else if (pathConfig.expandPaths.length) {
-      editor.expand([], expandNone);
-      applyPathRules();
-    } else {
-      editor.expand([], expandMinimal);
-    }
-    toggleBtn.textContent = treeExpanded ? '全部折叠' : '全部展开';
-  }
-
   function schedulePathApply() {
     if (pathTimer) window.clearTimeout(pathTimer);
     pathTimer = window.setTimeout(() => {
       syncPathRulesFromInput();
       if (lastData == null || treeExpanded || !editor) return;
-      applyTreeExpandState();
+      forceManualCollapse = false;
+      runExpandState();
     }, 400);
   }
 
   function renderTree(data: any) {
     lastData = data;
+    forceManualCollapse = false;
     showTreeView();
     ensureEditor();
     applyTreeExpandState();
@@ -366,8 +407,14 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
   toggleBtn.addEventListener('click', () => {
     if (lastData == null) return;
-    treeExpanded = !treeExpanded;
-    applyTreeExpandState();
+    if (treeExpanded) {
+      treeExpanded = false;
+      forceManualCollapse = true;
+    } else {
+      treeExpanded = true;
+      forceManualCollapse = false;
+    }
+    runExpandState();
   });
 
   fullBtn.addEventListener('click', () => togglePageFull());
@@ -375,6 +422,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   document.getElementById('btn-clear')!.addEventListener('click', () => {
     input.value = '';
     treeExpanded = false;
+    forceManualCollapse = false;
     renderEmpty();
     msg.textContent = '';
     msg.className = '';
