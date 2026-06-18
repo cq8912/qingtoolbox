@@ -1,0 +1,190 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="时间戳在线转换"
+  description="Unix 时间戳与本地日期时间互转，支持秒级、毫秒级，浏览器本地处理，一键复制当前时间。"
+  currentSlug="timestamp"
+>
+  <h1 slot="header">时间戳转换</h1>
+  <p class="intro">秒/毫秒时间戳与本地日期时间双向转换，全部在浏览器完成。</p>
+
+  <div class="json-split">
+    <div class="tool-panel">
+      <label for="ts-input">时间戳</label>
+      <input type="text" id="ts-input" class="ts-field" placeholder="如 1710000000 或 1710000000000" inputmode="numeric" />
+      <div class="ts-unit-row">
+        <span class="field-label">单位</span>
+        <label class="ts-radio"><input type="radio" name="ts-unit" value="auto" checked /> 自动识别</label>
+        <label class="ts-radio"><input type="radio" name="ts-unit" value="s" /> 秒</label>
+        <label class="ts-radio"><input type="radio" name="ts-unit" value="ms" /> 毫秒</label>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn" id="btn-ts-to-date">转为日期时间</button>
+        <button type="button" class="btn btn-secondary" id="btn-now">当前时间</button>
+      </div>
+    </div>
+    <div class="tool-panel">
+      <label for="dt-input">本地日期时间</label>
+      <input type="datetime-local" id="dt-input" class="ts-field" step="1" />
+      <div class="btn-row">
+        <button type="button" class="btn" id="btn-date-to-ts">转为时间戳</button>
+      </div>
+      <p class="field-hint" id="ts-result-hint">秒级与毫秒级时间戳将显示在这里</p>
+      <div class="ts-result-box" id="ts-result-box" hidden>
+        <div><span>秒</span><code id="ts-sec-out">—</code></div>
+        <div><span>毫秒</span><code id="ts-ms-out">—</code></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row ts-global-actions">
+    <button type="button" class="btn btn-secondary" id="btn-copy">复制结果</button>
+    <button type="button" class="btn btn-secondary" id="btn-clear">一键清空</button>
+  </div>
+  <div id="ts-msg"></div>
+
+  <section class="section">
+    <h2>说明</h2>
+    <ul>
+      <li>自动识别：10 位左右按秒处理，13 位按毫秒处理</li>
+      <li>日期时间按本机时区显示与解析</li>
+      <li>示例：<code>1710000000</code> → <code>2024-03-09 18:40:00</code>（时区不同结果略有差异）</li>
+    </ul>
+  </section>
+</ToolLayout>
+
+<script>
+  const tsInput = document.getElementById('ts-input') as HTMLInputElement;
+  const dtInput = document.getElementById('dt-input') as HTMLInputElement;
+  const resultBox = document.getElementById('ts-result-box')!;
+  const secOut = document.getElementById('ts-sec-out')!;
+  const msOut = document.getElementById('ts-ms-out')!;
+  const resultHint = document.getElementById('ts-result-hint')!;
+  const msg = document.getElementById('ts-msg')!;
+
+  let lastCopyText = '';
+
+  function pad(n: number) {
+    return String(n).padStart(2, '0');
+  }
+
+  function getUnit() {
+    const el = document.querySelector('input[name="ts-unit"]:checked') as HTMLInputElement;
+    return el?.value || 'auto';
+  }
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+  }
+
+  function formatLocal(d: Date) {
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  function toDatetimeLocalValue(d: Date) {
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  // 时间戳转毫秒
+  function parseToMs(raw: string, unit: string) {
+    const text = raw.trim();
+    if (!text) return null;
+    const n = Number(text);
+    if (isNaN(n)) return null;
+    if (unit == 's') return n * 1000;
+    if (unit == 'ms') return n;
+    // 自动：13 位及以上或数值大于 1e12 视为毫秒
+    if (text.length >= 13 || n > 1e12) return n;
+    return n * 1000;
+  }
+
+  function showTsResult(sec: number, ms: number) {
+    secOut.textContent = String(sec);
+    msOut.textContent = String(ms);
+    resultBox.hidden = false;
+    resultHint.hidden = true;
+    lastCopyText = `秒: ${sec}\n毫秒: ${ms}`;
+  }
+
+  function tsToDate() {
+    const ms = parseToMs(tsInput.value, getUnit());
+    if (ms == null) {
+      showMsg('请输入有效时间戳', 'error');
+      return;
+    }
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) {
+      showMsg('时间戳超出有效范围', 'error');
+      return;
+    }
+    dtInput.value = toDatetimeLocalValue(d);
+    const sec = Math.floor(ms / 1000);
+    showTsResult(sec, ms);
+    showMsg(`已转换：${formatLocal(d)}`, 'success');
+    lastCopyText = formatLocal(d);
+  }
+
+  function dateToTs() {
+    if (!dtInput.value) {
+      showMsg('请选择日期时间', 'error');
+      return;
+    }
+    const d = new Date(dtInput.value);
+    if (isNaN(d.getTime())) {
+      showMsg('日期时间无效', 'error');
+      return;
+    }
+    const ms = d.getTime();
+    const sec = Math.floor(ms / 1000);
+    tsInput.value = getUnit() == 'ms' ? String(ms) : String(sec);
+    showTsResult(sec, ms);
+    showMsg('已转为时间戳', 'success');
+    lastCopyText = `秒: ${sec}\n毫秒: ${ms}`;
+  }
+
+  function fillNow() {
+    const now = new Date();
+    const ms = now.getTime();
+    const sec = Math.floor(ms / 1000);
+    const unit = getUnit();
+    tsInput.value = unit == 'ms' ? String(ms) : String(sec);
+    dtInput.value = toDatetimeLocalValue(now);
+    showTsResult(sec, ms);
+    lastCopyText = `秒: ${sec}\n毫秒: ${ms}\n${formatLocal(now)}`;
+    showMsg('已填入当前时间', 'success');
+  }
+
+  function clearAll() {
+    tsInput.value = '';
+    dtInput.value = '';
+    resultBox.hidden = true;
+    resultHint.hidden = false;
+    secOut.textContent = '—';
+    msOut.textContent = '—';
+    lastCopyText = '';
+    msg.textContent = '';
+    msg.className = '';
+  }
+
+  document.getElementById('btn-ts-to-date')!.addEventListener('click', tsToDate);
+  document.getElementById('btn-date-to-ts')!.addEventListener('click', dateToTs);
+  document.getElementById('btn-now')!.addEventListener('click', fillNow);
+  document.getElementById('btn-clear')!.addEventListener('click', clearAll);
+
+  document.getElementById('btn-copy')!.addEventListener('click', async () => {
+    if (!lastCopyText) {
+      showMsg('暂无可复制内容', 'error');
+      return;
+    }
+    await navigator.clipboard.writeText(lastCopyText);
+    showMsg('已复制到剪贴板', 'success');
+  });
+
+  // 回车快捷转换
+  tsInput.addEventListener('keydown', (e) => {
+    if (e.key == 'Enter') tsToDate();
+  });
+</script>

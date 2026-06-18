@@ -454,6 +454,60 @@ main {
   border-radius: 4px;
 }
 
+.ts-field {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.ts-unit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+
+.ts-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.ts-result-box {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  display: grid;
+  gap: 8px;
+}
+
+.ts-result-box div {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.ts-result-box span {
+  color: var(--muted);
+  min-width: 2.5em;
+}
+
+.ts-global-actions {
+  margin-top: 4px;
+}
+
 .json-expand-rules {
   margin-top: 10px;
   padding-top: 10px;

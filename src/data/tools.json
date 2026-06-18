@@ -20,6 +20,16 @@
     ]
   },
   {
+    "slug": "timestamp",
+    "name": "时间戳转换",
+    "desc": "秒/毫秒时间戳与本地日期时间互转",
+    "icon": "时",
+    "tags": [
+      "开发",
+      "时间"
+    ]
+  },
+  {
     "slug": "base64",
     "name": "Base64",
     "desc": "文本与 Base64 互转，支持 UTF-8",
