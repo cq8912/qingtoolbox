@@ -1,0 +1,94 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="二维码生成器"
+  description="二维码在线生成器，支持文本和链接生成二维码，可调整尺寸、容错级别并下载 PNG，浏览器本地处理。"
+  currentSlug="qrcode"
+>
+  <h1 slot="header">二维码生成器</h1>
+  <p class="intro">输入文本或链接，生成可下载的 PNG 二维码。</p>
+
+  <div class="qr-grid">
+    <div class="tool-panel">
+      <label for="qr-text">内容</label>
+      <textarea id="qr-text" class="json-editor" placeholder="输入链接、文本、联系方式等"></textarea>
+      <div class="regex-row">
+        <div>
+          <label for="qr-size">尺寸</label>
+          <select id="qr-size">
+            <option value="256">256 px</option>
+            <option value="384" selected>384 px</option>
+            <option value="512">512 px</option>
+            <option value="768">768 px</option>
+          </select>
+        </div>
+        <div>
+          <label for="qr-ec">容错</label>
+          <select id="qr-ec">
+            <option value="L">L - 小</option>
+            <option value="M" selected>M - 标准</option>
+            <option value="Q">Q - 高</option>
+            <option value="H">H - 最高</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="btn-make">生成二维码</button>
+        <button class="btn btn-secondary" id="btn-download">下载 PNG</button>
+      </div>
+      <div id="qr-msg"></div>
+    </div>
+
+    <div class="tool-panel qr-preview-panel">
+      <label>预览</label>
+      <div class="qr-preview">
+        <canvas id="qr-canvas" width="384" height="384" aria-label="二维码预览"></canvas>
+      </div>
+    </div>
+  </div>
+</ToolLayout>
+
+<script>
+  import QRCode from 'qrcode';
+
+  const text = document.getElementById('qr-text') as HTMLTextAreaElement;
+  const size = document.getElementById('qr-size') as HTMLSelectElement;
+  const ec = document.getElementById('qr-ec') as HTMLSelectElement;
+  const canvas = document.getElementById('qr-canvas') as HTMLCanvasElement;
+  const msg = document.getElementById('qr-msg')!;
+
+  function showMsg(value: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = value;
+  }
+
+  async function make() {
+    if (!text.value.trim()) {
+      showMsg('请输入要生成二维码的内容', 'error');
+      return;
+    }
+    await QRCode.toCanvas(canvas, text.value, {
+      width: Number(size.value),
+      margin: 2,
+      errorCorrectionLevel: ec.value as 'L' | 'M' | 'Q' | 'H',
+      color: { dark: '#1a1814', light: '#fffef9' },
+    });
+    showMsg('二维码已生成', 'success');
+  }
+
+  document.getElementById('btn-make')!.addEventListener('click', make);
+  text.addEventListener('input', () => {
+    if (text.value.trim()) make();
+  });
+  size.addEventListener('change', make);
+  ec.addEventListener('change', make);
+  document.getElementById('btn-download')!.addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'qrcode.png';
+    a.click();
+  });
+</script>
+

@@ -1,0 +1,95 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="SHA 哈希在线计算"
+  description="SHA 哈希在线计算工具，支持文本与文件的 SHA-1、SHA-256、SHA-384、SHA-512，浏览器本地处理。"
+  currentSlug="sha"
+>
+  <h1 slot="header">SHA 哈希</h1>
+  <p class="intro">计算文本或文件哈希值，适合校验下载文件、接口签名调试和内容去重。</p>
+
+  <div class="json-split">
+    <div class="tool-panel">
+      <label for="sha-input">文本输入</label>
+      <textarea id="sha-input" class="json-editor" placeholder="输入要计算哈希的文本"></textarea>
+      <label for="sha-file" class="field-label sha-file-label">或选择文件</label>
+      <input type="file" id="sha-file" />
+      <div class="field-hint" id="sha-file-info">未选择文件时计算文本哈希</div>
+      <div class="btn-row">
+        <button class="btn" id="btn-sha">计算</button>
+        <button class="btn btn-secondary" id="btn-clear-file">清除文件</button>
+      </div>
+      <div id="sha-msg"></div>
+    </div>
+
+    <div class="tool-panel">
+      <label for="sha-algo">算法</label>
+      <select id="sha-algo">
+        <option value="SHA-256">SHA-256</option>
+        <option value="SHA-1">SHA-1</option>
+        <option value="SHA-384">SHA-384</option>
+        <option value="SHA-512">SHA-512</option>
+      </select>
+      <label for="sha-output" class="field-label sha-output-label">结果</label>
+      <textarea id="sha-output" class="json-editor output-readonly" readonly placeholder="哈希值将显示在这里"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="btn-copy">复制结果</button>
+      </div>
+    </div>
+  </div>
+
+  <section class="section">
+    <h2>说明</h2>
+    <ul>
+      <li>所有计算在浏览器本地完成，文件不会上传服务器</li>
+      <li>密码存储请使用专门的密码哈希算法，不要直接使用 SHA</li>
+    </ul>
+  </section>
+</ToolLayout>
+
+<script>
+  const input = document.getElementById('sha-input') as HTMLTextAreaElement;
+  const fileInput = document.getElementById('sha-file') as HTMLInputElement;
+  const fileInfo = document.getElementById('sha-file-info')!;
+  const algo = document.getElementById('sha-algo') as HTMLSelectElement;
+  const output = document.getElementById('sha-output') as HTMLTextAreaElement;
+  const msg = document.getElementById('sha-msg')!;
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+  }
+
+  function hex(buffer: ArrayBuffer) {
+    return Array.from(new Uint8Array(buffer), (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function calc() {
+    const file = fileInput.files?.[0];
+    const data = file ? await file.arrayBuffer() : new TextEncoder().encode(input.value);
+    if (!file && !input.value) {
+      showMsg('请输入文本或选择文件', 'error');
+      return;
+    }
+    output.value = hex(await crypto.subtle.digest(algo.value, data));
+    showMsg('计算完成', 'success');
+  }
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    fileInfo.textContent = file ? `${file.name} · ${file.size} bytes` : '未选择文件时计算文本哈希';
+  });
+  document.getElementById('btn-sha')!.addEventListener('click', calc);
+  document.getElementById('btn-clear-file')!.addEventListener('click', () => {
+    fileInput.value = '';
+    fileInfo.textContent = '未选择文件时计算文本哈希';
+  });
+  document.getElementById('btn-copy')!.addEventListener('click', async () => {
+    if (!output.value) return;
+    await navigator.clipboard.writeText(output.value);
+    showMsg('已复制', 'success');
+  });
+</script>
+

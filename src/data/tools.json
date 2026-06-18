@@ -40,6 +40,16 @@
     ]
   },
   {
+    "slug": "url-encode",
+    "name": "URL 编码",
+    "desc": "URL 编码解码，支持组件与整段 URL",
+    "icon": "%",
+    "tags": [
+      "编码",
+      "开发"
+    ]
+  },
+  {
     "slug": "md5",
     "name": "MD5",
     "desc": "在线计算字符串 MD5 哈希值",
@@ -47,6 +57,46 @@
     "tags": [
       "加密",
       "哈希"
+    ]
+  },
+  {
+    "slug": "sha",
+    "name": "SHA 哈希",
+    "desc": "计算文本或文件的 SHA 哈希值",
+    "icon": "SHA",
+    "tags": [
+      "加密",
+      "哈希"
+    ]
+  },
+  {
+    "slug": "regex-tester",
+    "name": "正则测试",
+    "desc": "在线测试 JavaScript 正则匹配与替换",
+    "icon": ".*",
+    "tags": [
+      "开发",
+      "正则"
+    ]
+  },
+  {
+    "slug": "word-count",
+    "name": "字数统计",
+    "desc": "统计中文、英文、字符、行数与阅读时间",
+    "icon": "文",
+    "tags": [
+      "文本",
+      "办公"
+    ]
+  },
+  {
+    "slug": "qrcode",
+    "name": "二维码",
+    "desc": "文本或链接生成二维码并下载 PNG",
+    "icon": "QR",
+    "tags": [
+      "图片",
+      "二维码"
     ]
   },
   {
@@ -67,6 +117,16 @@
     "tags": [
       "图片",
       "压缩"
+    ]
+  },
+  {
+    "slug": "image-convert",
+    "name": "图片互转",
+    "desc": "WebP、JPG、PNG、ICO 本地互转",
+    "icon": "转",
+    "tags": [
+      "图片",
+      "格式"
     ]
   }
 ]

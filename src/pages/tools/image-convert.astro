@@ -1,0 +1,202 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="图片格式互转"
+  description="图片格式在线互转工具，支持 WebP、JPG、PNG、ICO 本地转换，可调整 JPEG/WebP 质量与 ICO 尺寸。"
+  currentSlug="image-convert"
+>
+  <h1 slot="header">图片格式互转</h1>
+  <p class="intro">WebP、JPG、PNG、ICO 本地互转，图片不会上传服务器。</p>
+
+  <div class="compress-workspace">
+    <div class="compress-panel">
+      <div class="field-label">原图（点击上传）</div>
+      <label class="img-slot img-slot-upload" id="convert-drop">
+        <input type="file" id="convert-file" accept="image/*,.ico" />
+        <span id="convert-placeholder">点击或拖拽上传图片</span>
+        <img id="convert-preview" alt="" hidden />
+      </label>
+      <div class="img-meta" id="convert-meta">—</div>
+    </div>
+
+    <div class="compress-panel compress-controls">
+      <div>
+        <label class="field-label" for="convert-format">输出格式</label>
+        <select id="convert-format">
+          <option value="image/webp">WebP</option>
+          <option value="image/png">PNG</option>
+          <option value="image/jpeg">JPG</option>
+          <option value="image/x-icon">ICO</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label">质量 <span class="range-val" id="convert-quality-val">90%</span></label>
+        <div class="range-row">
+          <input type="range" id="convert-quality" min="10" max="100" value="90" />
+        </div>
+      </div>
+      <div>
+        <label class="field-label" for="ico-size">ICO 尺寸</label>
+        <select id="ico-size">
+          <option value="16">16×16</option>
+          <option value="32" selected>32×32</option>
+          <option value="48">48×48</option>
+          <option value="64">64×64</option>
+          <option value="128">128×128</option>
+          <option value="256">256×256</option>
+        </select>
+      </div>
+      <div class="btn-row compress-btn-row">
+        <button class="btn" id="btn-convert">转换</button>
+        <a class="btn btn-secondary" id="btn-convert-dl" download hidden>下载</a>
+      </div>
+      <div id="convert-msg"></div>
+    </div>
+
+    <div class="compress-panel">
+      <div class="field-label">转换后</div>
+      <div class="img-slot" id="convert-output"><span>等待转换</span></div>
+      <div class="img-meta" id="convert-out-meta">—</div>
+    </div>
+  </div>
+</ToolLayout>
+
+<script>
+  const fileInput = document.getElementById('convert-file') as HTMLInputElement;
+  const drop = document.getElementById('convert-drop')!;
+  const placeholder = document.getElementById('convert-placeholder')!;
+  const preview = document.getElementById('convert-preview') as HTMLImageElement;
+  const meta = document.getElementById('convert-meta')!;
+  const outMeta = document.getElementById('convert-out-meta')!;
+  const format = document.getElementById('convert-format') as HTMLSelectElement;
+  const quality = document.getElementById('convert-quality') as HTMLInputElement;
+  const qualityVal = document.getElementById('convert-quality-val')!;
+  const icoSize = document.getElementById('ico-size') as HTMLSelectElement;
+  const output = document.getElementById('convert-output')!;
+  const download = document.getElementById('btn-convert-dl') as HTMLAnchorElement;
+  const msg = document.getElementById('convert-msg')!;
+
+  let currentFile: File | null = null;
+  let imageUrl = '';
+  let width = 0;
+  let height = 0;
+
+  function fmtSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+  }
+
+  function blobToDataUrl(blob: Blob) {
+    return new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function canvasToBlob(canvas: HTMLCanvasElement, mime: string, q: number) {
+    return new Promise<Blob>((resolve, reject) => canvas.toBlob((b) => b ? resolve(b) : reject(new Error('转换失败')), mime, q));
+  }
+
+  async function makeIco(png: Blob, size: number) {
+    const pngBytes = new Uint8Array(await png.arrayBuffer());
+    const header = new ArrayBuffer(22);
+    const view = new DataView(header);
+    view.setUint16(0, 0, true);
+    view.setUint16(2, 1, true);
+    view.setUint16(4, 1, true);
+    view.setUint8(6, size == 256 ? 0 : size);
+    view.setUint8(7, size == 256 ? 0 : size);
+    view.setUint8(8, 0);
+    view.setUint8(9, 0);
+    view.setUint16(10, 1, true);
+    view.setUint16(12, 32, true);
+    view.setUint32(14, pngBytes.length, true);
+    view.setUint32(18, 22, true);
+    return new Blob([header, pngBytes], { type: 'image/x-icon' });
+  }
+
+  async function convert() {
+    if (!currentFile) {
+      showMsg('请先上传图片', 'error');
+      return;
+    }
+    const img = new Image();
+    img.onload = async () => {
+      const toIco = format.value == 'image/x-icon';
+      const size = toIco ? Number(icoSize.value) : Math.max(img.width, img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = toIco ? size : img.width;
+      canvas.height = toIco ? size : img.height;
+      const ctx = canvas.getContext('2d')!;
+      if (format.value == 'image/jpeg') {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      if (toIco) {
+        const ratio = Math.min(size / img.width, size / img.height);
+        const w = Math.round(img.width * ratio);
+        const h = Math.round(img.height * ratio);
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      } else {
+        ctx.drawImage(img, 0, 0);
+      }
+      const q = Number(quality.value) / 100;
+      const ext = format.value == 'image/jpeg' ? 'jpg' : format.value == 'image/x-icon' ? 'ico' : format.value.split('/')[1];
+      const png = await canvasToBlob(canvas, 'image/png', q);
+      const blob = toIco ? await makeIco(png, size) : await canvasToBlob(canvas, format.value, q);
+      const dataUrl = await blobToDataUrl(blob);
+      output.innerHTML = toIco ? '<span>ICO 文件已生成</span>' : `<img src="${dataUrl}" alt="" />`;
+      download.href = dataUrl;
+      download.download = `converted.${ext}`;
+      download.hidden = false;
+      outMeta.textContent = `${toIco ? `${size}×${size}` : `${canvas.width}×${canvas.height}`} · ${fmtSize(blob.size)} · ${ext.toUpperCase()}`;
+      showMsg('转换完成', 'success');
+    };
+    img.onerror = () => showMsg('图片读取失败，请换一张图片', 'error');
+    img.src = imageUrl;
+  }
+
+  function useFile(file: File) {
+    currentFile = file;
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    imageUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      width = img.width;
+      height = img.height;
+      placeholder.hidden = true;
+      preview.src = imageUrl;
+      preview.hidden = false;
+      meta.textContent = `${file.name} · ${width}×${height} · ${fmtSize(file.size)}`;
+      convert();
+    };
+    img.onerror = () => showMsg('图片读取失败，请换一张图片', 'error');
+    img.src = imageUrl;
+  }
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (file) useFile(file);
+  });
+  drop.addEventListener('dragover', (e) => e.preventDefault());
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0];
+    if (file) useFile(file);
+  });
+  quality.addEventListener('input', () => {
+    qualityVal.textContent = `${quality.value}%`;
+  });
+  document.getElementById('btn-convert')!.addEventListener('click', convert);
+  format.addEventListener('change', convert);
+  icoSize.addEventListener('change', convert);
+</script>

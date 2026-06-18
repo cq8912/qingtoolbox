@@ -353,6 +353,10 @@ main {
   line-height: 1.5;
 }
 
+.tool-panel textarea.tall-editor {
+  min-height: 260px;
+}
+
 .tool-panel textarea.json-editor {
   tab-size: 2;
 }
@@ -368,6 +372,113 @@ main {
   color: var(--muted);
   margin-top: 6px;
   font-family: var(--mono);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.stat-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+}
+
+.stat-card strong {
+  display: block;
+  font-family: var(--mono);
+  font-size: 1.3rem;
+  line-height: 1.2;
+  word-break: break-all;
+}
+
+.regex-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.regex-replace-label,
+.sha-file-label,
+.sha-output-label {
+  margin-top: 12px;
+}
+
+.result-box {
+  min-height: 160px;
+  max-height: 340px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.match-item {
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--border);
+  color: var(--text);
+}
+
+.match-item:last-child {
+  border-bottom: none;
+}
+
+.match-item strong,
+.match-item span,
+.match-group {
+  margin-right: 8px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.match-item code,
+.match-group code {
+  color: var(--text);
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.qr-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: 16px;
+  align-items: start;
+}
+
+.qr-preview-panel {
+  text-align: center;
+}
+
+.qr-preview {
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: auto;
+}
+
+.qr-preview canvas {
+  max-width: 100%;
+  height: auto;
+  background: #fffef9;
 }
 
 .btn-row {
@@ -1333,8 +1444,21 @@ body.json-page-full {
   }
 
   .json-split,
-  .compress-workspace {
+  .compress-workspace,
+  .qr-grid {
     grid-template-columns: 1fr;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .regex-row {
+    grid-template-columns: 1fr;
+  }
+
+  .qr-preview {
+    min-height: 280px;
   }
 
   .tool-grid {
@@ -1344,6 +1468,10 @@ body.json-page-full {
 
 @media (max-width: 520px) {
   .tool-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-grid {
     grid-template-columns: 1fr;
   }
 }

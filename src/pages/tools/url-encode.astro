@@ -1,0 +1,85 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="URL 编码解码"
+  description="URL 编码解码在线工具，支持 encodeURIComponent、decodeURIComponent 与整段 URL 编码，浏览器本地处理。"
+  currentSlug="url-encode"
+>
+  <h1 slot="header">URL 编码解码</h1>
+  <p class="intro">中文、空格、特殊符号与查询参数互转，适合接口调试和链接处理。</p>
+
+  <div class="json-split">
+    <div class="tool-panel">
+      <label for="url-input">输入</label>
+      <textarea id="url-input" class="json-editor" placeholder="例如：https://example.com/search?q=轻工具箱&from=测试"></textarea>
+      <div class="btn-row">
+        <button class="btn" id="btn-enc-component">编码组件</button>
+        <button class="btn btn-secondary" id="btn-enc-url">编码整段 URL</button>
+        <button class="btn btn-secondary" id="btn-decode">解码</button>
+      </div>
+      <div class="field-hint">组件编码会把 <code>:/?&=</code> 一并转义；整段 URL 会保留 URL 结构。</div>
+    </div>
+
+    <div class="tool-panel">
+      <label for="url-output">结果</label>
+      <textarea id="url-output" class="json-editor output-readonly" readonly placeholder="结果将显示在这里"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="btn-copy">复制结果</button>
+        <button class="btn btn-secondary" id="btn-swap">结果填回输入</button>
+        <button class="btn btn-secondary" id="btn-clear">清空</button>
+      </div>
+      <div id="url-msg"></div>
+    </div>
+  </div>
+
+  <section class="section">
+    <h2>常用区别</h2>
+    <ul>
+      <li><code>encodeURIComponent</code> 适合编码单个参数值</li>
+      <li><code>encodeURI</code> 适合编码完整 URL，会保留 <code>:/?&=</code></li>
+    </ul>
+  </section>
+</ToolLayout>
+
+<script>
+  const input = document.getElementById('url-input') as HTMLTextAreaElement;
+  const output = document.getElementById('url-output') as HTMLTextAreaElement;
+  const msg = document.getElementById('url-msg')!;
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+  }
+
+  function run(fn: (text: string) => string, ok: string) {
+    try {
+      output.value = fn(input.value);
+      showMsg(ok, 'success');
+    } catch {
+      showMsg('处理失败：请检查输入是否为有效编码内容', 'error');
+    }
+  }
+
+  document.getElementById('btn-enc-component')!.addEventListener('click', () => run(encodeURIComponent, '组件编码完成'));
+  document.getElementById('btn-enc-url')!.addEventListener('click', () => run(encodeURI, '整段 URL 编码完成'));
+  document.getElementById('btn-decode')!.addEventListener('click', () => run(decodeURIComponent, '解码完成'));
+  document.getElementById('btn-swap')!.addEventListener('click', () => {
+    input.value = output.value;
+    output.value = '';
+    showMsg('已填回输入框', 'success');
+  });
+  document.getElementById('btn-clear')!.addEventListener('click', () => {
+    input.value = '';
+    output.value = '';
+    msg.textContent = '';
+    msg.className = '';
+  });
+  document.getElementById('btn-copy')!.addEventListener('click', async () => {
+    if (!output.value) return;
+    await navigator.clipboard.writeText(output.value);
+    showMsg('已复制', 'success');
+  });
+</script>
+

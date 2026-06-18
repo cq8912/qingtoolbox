@@ -1,0 +1,75 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="字数统计在线工具"
+  description="在线字数统计工具，实时统计中文字符、英文单词、总字符、行数、段落数与预计阅读时间，浏览器本地处理。"
+  currentSlug="word-count"
+>
+  <h1 slot="header">字数统计</h1>
+  <p class="intro">粘贴文本后实时统计，适合作文、论文摘要、公众号和表单限字。</p>
+
+  <div class="tool-panel">
+    <label for="wc-input">文本</label>
+    <textarea id="wc-input" class="json-editor tall-editor" placeholder="在这里粘贴或输入文本"></textarea>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="btn-copy-clean">复制去空格文本</button>
+      <button class="btn btn-secondary" id="btn-clear">清空</button>
+    </div>
+    <div id="wc-msg"></div>
+  </div>
+
+  <div class="stat-grid" aria-live="polite">
+    <div class="stat-card"><span>总字符</span><strong id="wc-chars">0</strong></div>
+    <div class="stat-card"><span>不含空白</span><strong id="wc-no-space">0</strong></div>
+    <div class="stat-card"><span>中文字符</span><strong id="wc-cjk">0</strong></div>
+    <div class="stat-card"><span>英文单词</span><strong id="wc-words">0</strong></div>
+    <div class="stat-card"><span>行数</span><strong id="wc-lines">0</strong></div>
+    <div class="stat-card"><span>段落</span><strong id="wc-paras">0</strong></div>
+    <div class="stat-card"><span>预计阅读</span><strong id="wc-read">0 分钟</strong></div>
+  </div>
+</ToolLayout>
+
+<script>
+  const input = document.getElementById('wc-input') as HTMLTextAreaElement;
+  const msg = document.getElementById('wc-msg')!;
+  const set = (id: string, value: string | number) => (document.getElementById(id)!.textContent = String(value));
+
+  function count() {
+    const text = input.value;
+    const trimmed = text.trim();
+    const noSpace = text.replace(/\s/g, '');
+    const cjk = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+    const words = (text.match(/[A-Za-z]+(?:[-'][A-Za-z]+)*/g) || []).length;
+    const lines = text ? text.split(/\r\n|\r|\n/).length : 0;
+    const paras = trimmed ? trimmed.split(/\n\s*\n/).filter(Boolean).length : 0;
+    const readMin = Math.max(0, Math.ceil((cjk + words) / 400));
+
+    set('wc-chars', text.length);
+    set('wc-no-space', noSpace.length);
+    set('wc-cjk', cjk);
+    set('wc-words', words);
+    set('wc-lines', lines);
+    set('wc-paras', paras);
+    set('wc-read', `${readMin} 分钟`);
+  }
+
+  input.addEventListener('input', count);
+  document.getElementById('btn-clear')!.addEventListener('click', () => {
+    input.value = '';
+    msg.textContent = '';
+    msg.className = '';
+    count();
+  });
+  document.getElementById('btn-copy-clean')!.addEventListener('click', async () => {
+    const cleaned = input.value.replace(/\s+/g, '');
+    if (!cleaned) return;
+    await navigator.clipboard.writeText(cleaned);
+    msg.className = 'msg success';
+    msg.textContent = '已复制去空格文本';
+  });
+
+  count();
+</script>
+

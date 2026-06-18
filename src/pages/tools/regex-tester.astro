@@ -1,0 +1,105 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="正则表达式在线测试"
+  description="正则表达式在线测试工具，支持 JavaScript 正则 flags、匹配列表、捕获组与替换预览，浏览器本地处理。"
+  currentSlug="regex-tester"
+>
+  <h1 slot="header">正则表达式测试</h1>
+  <p class="intro">输入表达式和测试文本，查看匹配结果、捕获组和替换预览。</p>
+
+  <div class="tool-panel">
+    <div class="regex-row">
+      <div>
+        <label for="regex-pattern">表达式</label>
+        <input type="text" id="regex-pattern" placeholder="例如：\\b\\w+@\\w+\\.com\\b" />
+      </div>
+      <div>
+        <label for="regex-flags">Flags</label>
+        <input type="text" id="regex-flags" value="g" placeholder="gimuy" />
+      </div>
+    </div>
+    <label for="regex-text">测试文本</label>
+    <textarea id="regex-text" class="json-editor" placeholder="输入要测试的文本"></textarea>
+    <label for="regex-replace" class="field-label regex-replace-label">替换为（可选）</label>
+    <input type="text" id="regex-replace" placeholder="支持 $1、$2 捕获组" />
+    <div class="btn-row">
+      <button class="btn" id="btn-run">测试</button>
+      <button class="btn btn-secondary" id="btn-copy-replace">复制替换结果</button>
+      <button class="btn btn-secondary" id="btn-clear">清空</button>
+    </div>
+    <div id="regex-msg"></div>
+  </div>
+
+  <div class="json-split">
+    <div class="tool-panel">
+      <label>匹配结果</label>
+      <div class="result-box" id="regex-matches">等待测试</div>
+    </div>
+    <div class="tool-panel">
+      <label for="regex-output">替换预览</label>
+      <textarea id="regex-output" class="json-editor output-readonly" readonly placeholder="替换结果将显示在这里"></textarea>
+    </div>
+  </div>
+</ToolLayout>
+
+<script>
+  const pattern = document.getElementById('regex-pattern') as HTMLInputElement;
+  const flags = document.getElementById('regex-flags') as HTMLInputElement;
+  const text = document.getElementById('regex-text') as HTMLTextAreaElement;
+  const replace = document.getElementById('regex-replace') as HTMLInputElement;
+  const matches = document.getElementById('regex-matches')!;
+  const output = document.getElementById('regex-output') as HTMLTextAreaElement;
+  const msg = document.getElementById('regex-msg')!;
+
+  function esc(s: string) {
+    return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+  }
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+  }
+
+  function run() {
+    try {
+      const safeFlags = Array.from(new Set(flags.value.split(''))).join('');
+      const re = new RegExp(pattern.value, safeFlags.includes('g') ? safeFlags : `${safeFlags}g`);
+      const found = Array.from(text.value.matchAll(re));
+      output.value = text.value.replace(re, replace.value);
+      if (!found.length) {
+        matches.textContent = '未匹配到内容';
+        showMsg('测试完成：0 个匹配', 'success');
+        return;
+      }
+      matches.innerHTML = found.map((m, i) => {
+        const groups = m.slice(1).map((g, n) => `<div class="match-group">$${n + 1}: <code>${esc(g ?? '')}</code></div>`).join('');
+        return `<div class="match-item"><strong>#${i + 1}</strong> <code>${esc(m[0])}</code><span>位置 ${m.index}</span>${groups}</div>`;
+      }).join('');
+      showMsg(`测试完成：${found.length} 个匹配`, 'success');
+    } catch (e) {
+      matches.textContent = '正则表达式无效';
+      output.value = '';
+      showMsg(`表达式错误：${(e as Error).message}`, 'error');
+    }
+  }
+
+  document.getElementById('btn-run')!.addEventListener('click', run);
+  document.getElementById('btn-copy-replace')!.addEventListener('click', async () => {
+    if (!output.value) return;
+    await navigator.clipboard.writeText(output.value);
+    showMsg('已复制替换结果', 'success');
+  });
+  document.getElementById('btn-clear')!.addEventListener('click', () => {
+    pattern.value = '';
+    text.value = '';
+    replace.value = '';
+    output.value = '';
+    matches.textContent = '等待测试';
+    msg.textContent = '';
+    msg.className = '';
+  });
+</script>
+
