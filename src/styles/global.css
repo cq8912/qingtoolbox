@@ -209,7 +209,7 @@ main {
 }
 
 .tool-sidebar {
-  width: 74px;
+  width: 132px;
   flex-shrink: 0;
   position: sticky;
   top: calc(var(--header-h) + 16px);
@@ -425,6 +425,28 @@ main {
   background: #fff;
   color: var(--muted);
   font-size: 0.86rem;
+}
+
+.regex-demo-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.regex-demo-btn {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.regex-demo-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .match-item {

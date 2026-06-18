@@ -11,6 +11,15 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   <p class="intro">输入表达式和测试文本，查看匹配结果、捕获组和替换预览。</p>
 
   <div class="tool-panel">
+    <label>常用示例</label>
+    <div class="regex-demo-list">
+      <button class="regex-demo-btn" type="button" data-demo="email">邮箱</button>
+      <button class="regex-demo-btn" type="button" data-demo="phone">手机号</button>
+      <button class="regex-demo-btn" type="button" data-demo="url">URL</button>
+      <button class="regex-demo-btn" type="button" data-demo="date">日期</button>
+      <button class="regex-demo-btn" type="button" data-demo="ipv4">IPv4</button>
+      <button class="regex-demo-btn" type="button" data-demo="id">身份证号</button>
+    </div>
     <div class="regex-row">
       <div>
         <label for="regex-pattern">表达式</label>
@@ -53,6 +62,44 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   const matches = document.getElementById('regex-matches')!;
   const output = document.getElementById('regex-output') as HTMLTextAreaElement;
   const msg = document.getElementById('regex-msg')!;
+  const demos: Record<string, { pattern: string; flags: string; text: string; replace: string }> = {
+    email: {
+      pattern: String.raw`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`,
+      flags: 'g',
+      text: '联系邮箱：hello@example.com、test.user+tag@qq.com，错误示例：abc@',
+      replace: '[邮箱]',
+    },
+    phone: {
+      pattern: String.raw`1[3-9]\d{9}`,
+      flags: 'g',
+      text: '手机号：13800138000、19912345678，座机：010-88888888',
+      replace: '[手机号]',
+    },
+    url: {
+      pattern: String.raw`https?:\/\/[^\s]+`,
+      flags: 'g',
+      text: '官网 https://tools.cqzzz.top ，文档 http://example.com/a?b=1',
+      replace: '[链接]',
+    },
+    date: {
+      pattern: String.raw`\b\d{4}[-/](0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])\b`,
+      flags: 'g',
+      text: '日期：2026-06-18、2026/6/8，错误：2026-99-99',
+      replace: '$1月$2日',
+    },
+    ipv4: {
+      pattern: String.raw`\b((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)\b`,
+      flags: 'g',
+      text: '内网 192.168.1.1，DNS 8.8.8.8，错误 999.1.1.1',
+      replace: '[IP]',
+    },
+    id: {
+      pattern: String.raw`\b\d{17}[\dXx]\b`,
+      flags: 'g',
+      text: '示例：11010519491231002X、440524188001010014',
+      replace: '[身份证]',
+    },
+  };
 
   function esc(s: string) {
     return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -87,6 +134,17 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   }
 
   document.getElementById('btn-run')!.addEventListener('click', run);
+  document.querySelectorAll('.regex-demo-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const demo = demos[(btn as HTMLElement).dataset.demo || ''];
+      if (!demo) return;
+      pattern.value = demo.pattern;
+      flags.value = demo.flags;
+      text.value = demo.text;
+      replace.value = demo.replace;
+      run();
+    });
+  });
   document.getElementById('btn-copy-replace')!.addEventListener('click', async () => {
     if (!output.value) return;
     await navigator.clipboard.writeText(output.value);
@@ -102,4 +160,3 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     msg.className = '';
   });
 </script>
-
