@@ -6,13 +6,21 @@ type Opportunity = {
   query?: string;
   score?: number;
   impressions?: number;
+  clicks?: number;
+  ctr?: number;
+  position?: number;
 };
 
 const REPORT_DIR = 'reports/daily';
 const TOOLS_FILE = 'src/data/tools.json';
 const SUMMARY_FILE = path.join(REPORT_DIR, 'autopilot-summary.json');
+const HISTORY_FILE = path.join(REPORT_DIR, 'autopilot-history.json');
 const MAX_PAGES = Number(process.env.SEO_AUTOPILOT_MAX_PAGES || 3);
-const MIN_IMPRESSIONS = Number(process.env.SEO_AUTOPILOT_MIN_IMPRESSIONS || 20);
+const MIN_IMPRESSIONS = Number(process.env.SEO_AUTOPILOT_MIN_IMPRESSIONS || 80);
+const MAX_CTR = Number(process.env.SEO_AUTOPILOT_MAX_CTR || 0.15);
+const MIN_POSITION = Number(process.env.SEO_AUTOPILOT_MIN_POSITION || 4);
+const MAX_POSITION = Number(process.env.SEO_AUTOPILOT_MAX_POSITION || 20);
+const COOLDOWN_DAYS = Number(process.env.SEO_AUTOPILOT_COOLDOWN_DAYS || 7);
 
 const TOOL_TEMPLATE: Record<string, (q: string) => string> = {
   'json-viewer': (q) => `JSON 格式化校验工具，支持${q}、在线修复压缩与树形查看，浏览器本地处理。`,
@@ -45,12 +53,38 @@ function parseSlug(page?: string) {
   }
 }
 
+function shouldOptimize(row: Opportunity) {
+  const impressions = row.impressions || 0;
+  const clicks = row.clicks || 0;
+  const ctr = row.ctr || 0;
+  const position = row.position || 0;
+  if (impressions < MIN_IMPRESSIONS) return false;
+  if (clicks < 1) return false;
+  if (ctr > MAX_CTR) return false;
+  if (position < MIN_POSITION || position > MAX_POSITION) return false;
+  return true;
+}
+
+function loadHistory() {
+  if (!fs.existsSync(HISTORY_FILE)) return {} as Record<string, string>;
+  return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf-8')) as Record<string, string>;
+}
+
+function inCooldown(lastUpdated: string | undefined) {
+  if (!lastUpdated) return false;
+  const last = new Date(lastUpdated);
+  if (Number.isNaN(last.getTime())) return false;
+  const now = new Date();
+  const diff = now.getTime() - last.getTime();
+  return diff < COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+}
+
 function pickBestBySlug(rows: Opportunity[]) {
   const best = new Map<string, Opportunity>();
   for (const row of rows) {
     const slug = parseSlug(row.page);
     if (!slug || !(slug in TOOL_TEMPLATE)) continue;
-    if ((row.impressions || 0) < MIN_IMPRESSIONS) continue;
+    if (!shouldOptimize(row)) continue;
     const query = normalizeQuery(row.query || '');
     if (!query || query.length < 2) continue;
     const prev = best.get(slug);
@@ -106,7 +140,13 @@ async function main() {
   }
   const rows = JSON.parse(fs.readFileSync(oppFile, 'utf-8')) as Opportunity[];
   const allBest = pickBestBySlug(rows);
-  const best = new Map<string, Opportunity>(Array.from(allBest.entries()).slice(0, MAX_PAGES));
+  const history = loadHistory();
+  const best = new Map<string, Opportunity>();
+  for (const [slug, row] of allBest) {
+    if (inCooldown(history[slug])) continue;
+    best.set(slug, row);
+    if (best.size >= MAX_PAGES) break;
+  }
   let touched = 0;
   const touchedPages: string[] = [];
   const touchedKeywords: string[] = [];
@@ -119,12 +159,21 @@ async function main() {
   }
   if (updateToolsJson(best)) touched += 1;
   fs.mkdirSync(REPORT_DIR, { recursive: true });
+  const nowIso = new Date().toISOString();
+  for (const slug of touchedPages) {
+    history[slug] = nowIso;
+  }
+  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
   fs.writeFileSync(
     SUMMARY_FILE,
     JSON.stringify({
       touched,
       maxPages: MAX_PAGES,
       minImpressions: MIN_IMPRESSIONS,
+      maxCtr: MAX_CTR,
+      minPosition: MIN_POSITION,
+      maxPosition: MAX_POSITION,
+      cooldownDays: COOLDOWN_DAYS,
       pages: touchedPages,
       keywords: touchedKeywords,
       targets: best.size,
