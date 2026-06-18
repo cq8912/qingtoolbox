@@ -187,7 +187,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     paths.forEach((path) => {
       const keyPath = pathToKey(path);
       if (pathConfig.expandPaths.some((p) => pathMatchesExpand(keyPath, p))) {
-        editor!.expand(path);
+        editor!.expand(path.map((p) => String(p)));
       }
     });
   }
