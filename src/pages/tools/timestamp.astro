@@ -4,67 +4,174 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
 <ToolLayout
   title="时间戳在线转换"
-  description="Unix 时间戳与本地日期时间互转，支持秒级、毫秒级，浏览器本地处理，一键复制当前时间。"
+  description="Unix 时间戳与本地日期时间互转，支持秒级、毫秒级，实时钟表与一键复制，浏览器本地处理。"
   currentSlug="timestamp"
 >
   <h1 slot="header">时间戳转换</h1>
-  <p class="intro">秒/毫秒时间戳与本地日期时间双向转换，全部在浏览器完成。</p>
+  <p class="intro">看表、复制、转换——都在本机完成，轻松对照当前时间。</p>
 
-  <div class="json-split">
-    <div class="tool-panel">
-      <label for="ts-input">时间戳</label>
-      <input type="text" id="ts-input" class="ts-field" placeholder="如 1710000000 或 1710000000000" inputmode="numeric" />
-      <div class="ts-unit-row">
-        <span class="field-label">单位</span>
-        <label class="ts-radio"><input type="radio" name="ts-unit" value="auto" checked /> 自动识别</label>
-        <label class="ts-radio"><input type="radio" name="ts-unit" value="s" /> 秒</label>
-        <label class="ts-radio"><input type="radio" name="ts-unit" value="ms" /> 毫秒</label>
+  <div class="ts-page">
+    <!-- 实时钟表 -->
+    <section class="ts-live-card" aria-label="当前时间">
+      <div class="ts-clock-shell">
+        <svg class="ts-clock-svg" viewBox="0 0 200 200" aria-hidden="true">
+          <circle class="ts-clock-ring" cx="100" cy="100" r="96" />
+          <circle class="ts-clock-face" cx="100" cy="100" r="88" />
+          {Array.from({ length: 12 }).map((_, i) => {
+            const a = (i * 30 - 90) * (Math.PI / 180);
+            const x1 = 100 + Math.cos(a) * 76;
+            const y1 = 100 + Math.sin(a) * 76;
+            const x2 = 100 + Math.cos(a) * 84;
+            const y2 = 100 + Math.sin(a) * 84;
+            return <line class="ts-tick" x1={x1} y1={y1} x2={x2} y2={y2} />;
+          })}
+          <g id="ts-hand-hour" class="ts-hand-group">
+            <line class="ts-hand ts-hand-hour" x1="100" y1="100" x2="100" y2="58" />
+          </g>
+          <g id="ts-hand-min" class="ts-hand-group">
+            <line class="ts-hand ts-hand-min" x1="100" y1="100" x2="100" y2="42" />
+          </g>
+          <g id="ts-hand-sec" class="ts-hand-group">
+            <line class="ts-hand ts-hand-sec" x1="100" y1="108" x2="100" y2="34" />
+          </g>
+          <circle class="ts-clock-cap" cx="100" cy="100" r="5" />
+        </svg>
+        <span class="ts-clock-badge">LIVE</span>
       </div>
-      <div class="btn-row">
-        <button type="button" class="btn" id="btn-ts-to-date">转为日期时间</button>
-        <button type="button" class="btn btn-secondary" id="btn-now">当前时间</button>
+
+      <div class="ts-live-side">
+        <p class="ts-live-kicker">此刻</p>
+        <div class="ts-live-stack">
+          <div class="ts-copy-row" data-copy-target="live-date">
+            <span class="ts-copy-label">日期</span>
+            <code class="ts-copy-val" id="live-date">—</code>
+            <button type="button" class="ts-copy-btn" data-copy="live-date" aria-label="复制日期">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+            </button>
+          </div>
+          <div class="ts-copy-row" data-copy-target="live-weekday">
+            <span class="ts-copy-label">星期</span>
+            <code class="ts-copy-val" id="live-weekday">—</code>
+            <button type="button" class="ts-copy-btn" data-copy="live-weekday" aria-label="复制星期">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+            </button>
+          </div>
+          <div class="ts-copy-row" data-copy-target="live-time">
+            <span class="ts-copy-label">时间</span>
+            <code class="ts-copy-val ts-copy-val-lg" id="live-time">—</code>
+            <button type="button" class="ts-copy-btn" data-copy="live-time" aria-label="复制时间">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+            </button>
+          </div>
+          <div class="ts-copy-row" data-copy-target="live-sec">
+            <span class="ts-copy-label">秒</span>
+            <code class="ts-copy-val" id="live-sec">—</code>
+            <button type="button" class="ts-copy-btn" data-copy="live-sec" aria-label="复制秒级时间戳">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+            </button>
+          </div>
+          <div class="ts-copy-row" data-copy-target="live-ms">
+            <span class="ts-copy-label">毫秒</span>
+            <code class="ts-copy-val" id="live-ms">—</code>
+            <button type="button" class="ts-copy-btn" data-copy="live-ms" aria-label="复制毫秒级时间戳">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 转换区 -->
+    <div class="ts-convert-grid">
+      <div class="tool-panel ts-panel">
+        <div class="ts-panel-head">
+          <span class="ts-panel-icon" aria-hidden="true">#</span>
+          <label for="ts-input">时间戳 → 日期</label>
+        </div>
+        <input type="text" id="ts-input" class="ts-field" placeholder="1710000000 或 1710000000000" inputmode="numeric" />
+        <div class="ts-unit-row">
+          <label class="ts-radio"><input type="radio" name="ts-unit" value="auto" checked /> 自动</label>
+          <label class="ts-radio"><input type="radio" name="ts-unit" value="s" /> 秒</label>
+          <label class="ts-radio"><input type="radio" name="ts-unit" value="ms" /> 毫秒</label>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn" id="btn-ts-to-date">转换</button>
+          <button type="button" class="btn btn-secondary" id="btn-now">填入当前</button>
+        </div>
+      </div>
+
+      <div class="tool-panel ts-panel">
+        <div class="ts-panel-head">
+          <span class="ts-panel-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+          </span>
+          <label for="dt-input">日期 → 时间戳</label>
+        </div>
+        <input type="datetime-local" id="dt-input" class="ts-field" step="1" />
+        <div class="btn-row">
+          <button type="button" class="btn" id="btn-date-to-ts">转换</button>
+        </div>
       </div>
     </div>
-    <div class="tool-panel">
-      <label for="dt-input">本地日期时间</label>
-      <input type="datetime-local" id="dt-input" class="ts-field" step="1" />
-      <div class="btn-row">
-        <button type="button" class="btn" id="btn-date-to-ts">转为时间戳</button>
+
+    <!-- 转换结果：每项可单独复制 -->
+    <section class="ts-result-card" id="ts-result-card" hidden>
+      <h2 class="ts-result-title">转换结果</h2>
+      <div class="ts-live-stack">
+        <div class="ts-copy-row" data-copy-target="out-datetime">
+          <span class="ts-copy-label">日期时间</span>
+          <code class="ts-copy-val" id="out-datetime">—</code>
+          <button type="button" class="ts-copy-btn" data-copy="out-datetime" aria-label="复制日期时间">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+          </button>
+        </div>
+        <div class="ts-copy-row" data-copy-target="out-sec">
+          <span class="ts-copy-label">秒</span>
+          <code class="ts-copy-val" id="out-sec">—</code>
+          <button type="button" class="ts-copy-btn" data-copy="out-sec" aria-label="复制秒">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+          </button>
+        </div>
+        <div class="ts-copy-row" data-copy-target="out-ms">
+          <span class="ts-copy-label">毫秒</span>
+          <code class="ts-copy-val" id="out-ms">—</code>
+          <button type="button" class="ts-copy-btn" data-copy="out-ms" aria-label="复制毫秒">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+          </button>
+        </div>
       </div>
-      <p class="field-hint" id="ts-result-hint">秒级与毫秒级时间戳将显示在这里</p>
-      <div class="ts-result-box" id="ts-result-box" hidden>
-        <div><span>秒</span><code id="ts-sec-out">—</code></div>
-        <div><span>毫秒</span><code id="ts-ms-out">—</code></div>
-      </div>
+    </section>
+
+    <div class="btn-row ts-global-actions">
+      <button type="button" class="btn btn-secondary" id="btn-clear">一键清空</button>
     </div>
-  </div>
+    <div id="ts-msg"></div>
 
-  <div class="btn-row ts-global-actions">
-    <button type="button" class="btn btn-secondary" id="btn-copy">复制结果</button>
-    <button type="button" class="btn btn-secondary" id="btn-clear">一键清空</button>
+    <section class="section ts-tips">
+      <h2>小提示</h2>
+      <ul>
+        <li>表盘每秒走动，右侧数值同步更新，点复制图标即可单独复制</li>
+        <li>10 位左右按秒、13 位按毫秒自动识别</li>
+      </ul>
+    </section>
   </div>
-  <div id="ts-msg"></div>
-
-  <section class="section">
-    <h2>说明</h2>
-    <ul>
-      <li>自动识别：10 位左右按秒处理，13 位按毫秒处理</li>
-      <li>日期时间按本机时区显示与解析</li>
-      <li>示例：<code>1710000000</code> → <code>2024-03-09 18:40:00</code>（时区不同结果略有差异）</li>
-    </ul>
-  </section>
 </ToolLayout>
 
 <script>
+  const WEEKDAYS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
   const tsInput = document.getElementById('ts-input') as HTMLInputElement;
   const dtInput = document.getElementById('dt-input') as HTMLInputElement;
-  const resultBox = document.getElementById('ts-result-box')!;
-  const secOut = document.getElementById('ts-sec-out')!;
-  const msOut = document.getElementById('ts-ms-out')!;
-  const resultHint = document.getElementById('ts-result-hint')!;
+  const resultCard = document.getElementById('ts-result-card')!;
+  const outDatetime = document.getElementById('out-datetime')!;
+  const outSec = document.getElementById('out-sec')!;
+  const outMs = document.getElementById('out-ms')!;
   const msg = document.getElementById('ts-msg')!;
+  const handHour = document.getElementById('ts-hand-hour')!;
+  const handMin = document.getElementById('ts-hand-min')!;
+  const handSec = document.getElementById('ts-hand-sec')!;
 
-  let lastCopyText = '';
+  let clockTimer: number | null = null;
 
   function pad(n: number) {
     return String(n).padStart(2, '0');
@@ -84,11 +191,14 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
+  function formatDateCn(d: Date) {
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  }
+
   function toDatetimeLocalValue(d: Date) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
-  // 时间戳转毫秒
   function parseToMs(raw: string, unit: string) {
     const text = raw.trim();
     if (!text) return null;
@@ -96,35 +206,68 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     if (isNaN(n)) return null;
     if (unit == 's') return n * 1000;
     if (unit == 'ms') return n;
-    // 自动：13 位及以上或数值大于 1e12 视为毫秒
     if (text.length >= 13 || n > 1e12) return n;
     return n * 1000;
   }
 
-  function showTsResult(sec: number, ms: number) {
-    secOut.textContent = String(sec);
-    msOut.textContent = String(ms);
-    resultBox.hidden = false;
-    resultHint.hidden = true;
-    lastCopyText = `秒: ${sec}\n毫秒: ${ms}`;
+  function setHand(el: HTMLElement, deg: number) {
+    el.setAttribute('transform', `rotate(${deg} 100 100)`);
+  }
+
+  // 实时钟表 + 右侧 live 数值
+  function tickLive() {
+    const now = new Date();
+    const h = now.getHours() % 12;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const ms = now.getMilliseconds();
+    const secTs = Math.floor(now.getTime() / 1000);
+
+    setHand(handHour, h * 30 + m * 0.5);
+    setHand(handMin, m * 6 + s * 0.1);
+    setHand(handSec, s * 6 + ms * 0.006);
+
+    const liveDate = document.getElementById('live-date')!;
+    const liveWeekday = document.getElementById('live-weekday')!;
+    const liveTime = document.getElementById('live-time')!;
+    const liveSec = document.getElementById('live-sec')!;
+    const liveMs = document.getElementById('live-ms')!;
+
+    liveDate.textContent = formatDateCn(now);
+    liveWeekday.textContent = WEEKDAYS[now.getDay()];
+    liveTime.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    liveSec.textContent = String(secTs);
+    liveMs.textContent = String(now.getTime());
+  }
+
+  function startClock() {
+    tickLive();
+    if (clockTimer) window.clearInterval(clockTimer);
+    clockTimer = window.setInterval(tickLive, 50);
+  }
+
+  function showConvertResult(d: Date, sec: number, ms: number) {
+    outDatetime.textContent = formatLocal(d);
+    outSec.textContent = String(sec);
+    outMs.textContent = String(ms);
+    resultCard.hidden = false;
   }
 
   function tsToDate() {
-    const ms = parseToMs(tsInput.value, getUnit());
-    if (ms == null) {
+    const msVal = parseToMs(tsInput.value, getUnit());
+    if (msVal == null) {
       showMsg('请输入有效时间戳', 'error');
       return;
     }
-    const d = new Date(ms);
+    const d = new Date(msVal);
     if (isNaN(d.getTime())) {
       showMsg('时间戳超出有效范围', 'error');
       return;
     }
     dtInput.value = toDatetimeLocalValue(d);
-    const sec = Math.floor(ms / 1000);
-    showTsResult(sec, ms);
+    const sec = Math.floor(msVal / 1000);
+    showConvertResult(d, sec, msVal);
     showMsg(`已转换：${formatLocal(d)}`, 'success');
-    lastCopyText = formatLocal(d);
   }
 
   function dateToTs() {
@@ -140,9 +283,8 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     const ms = d.getTime();
     const sec = Math.floor(ms / 1000);
     tsInput.value = getUnit() == 'ms' ? String(ms) : String(sec);
-    showTsResult(sec, ms);
+    showConvertResult(d, sec, ms);
     showMsg('已转为时间戳', 'success');
-    lastCopyText = `秒: ${sec}\n毫秒: ${ms}`;
   }
 
   function fillNow() {
@@ -152,39 +294,47 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     const unit = getUnit();
     tsInput.value = unit == 'ms' ? String(ms) : String(sec);
     dtInput.value = toDatetimeLocalValue(now);
-    showTsResult(sec, ms);
-    lastCopyText = `秒: ${sec}\n毫秒: ${ms}\n${formatLocal(now)}`;
+    showConvertResult(now, sec, ms);
     showMsg('已填入当前时间', 'success');
   }
 
   function clearAll() {
     tsInput.value = '';
     dtInput.value = '';
-    resultBox.hidden = true;
-    resultHint.hidden = false;
-    secOut.textContent = '—';
-    msOut.textContent = '—';
-    lastCopyText = '';
+    resultCard.hidden = true;
+    outDatetime.textContent = '—';
+    outSec.textContent = '—';
+    outMs.textContent = '—';
     msg.textContent = '';
     msg.className = '';
   }
+
+  async function copyById(id: string) {
+    const el = document.getElementById(id);
+    const text = el?.textContent?.trim();
+    if (!text || text == '—') {
+      showMsg('暂无可复制内容', 'error');
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    showMsg(`已复制：${text.length > 24 ? text.slice(0, 24) + '…' : text}`, 'success');
+  }
+
+  document.querySelectorAll('.ts-copy-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = (btn as HTMLElement).dataset.copy;
+      if (id) copyById(id);
+    });
+  });
 
   document.getElementById('btn-ts-to-date')!.addEventListener('click', tsToDate);
   document.getElementById('btn-date-to-ts')!.addEventListener('click', dateToTs);
   document.getElementById('btn-now')!.addEventListener('click', fillNow);
   document.getElementById('btn-clear')!.addEventListener('click', clearAll);
 
-  document.getElementById('btn-copy')!.addEventListener('click', async () => {
-    if (!lastCopyText) {
-      showMsg('暂无可复制内容', 'error');
-      return;
-    }
-    await navigator.clipboard.writeText(lastCopyText);
-    showMsg('已复制到剪贴板', 'success');
-  });
-
-  // 回车快捷转换
   tsInput.addEventListener('keydown', (e) => {
     if (e.key == 'Enter') tsToDate();
   });
+
+  startClock();
 </script>
