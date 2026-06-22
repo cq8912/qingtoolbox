@@ -26,12 +26,20 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
             <label for="path-expand-rules">展开路径（每行一条，支持后缀：function、tools.*.function）</label>
             <textarea id="path-expand-rules" rows="2" spellcheck="false" placeholder="tools.*.function"></textarea>
           </div>
+          <div class="json-expand-rules">
+            <div class="json-rule-head">
+              <label for="field-filter-rules">字段筛选（每行一条，只保留键名匹配字段，如 stream、thinkProcess）</label>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-field-filter">清空字段筛选</button>
+            </div>
+            <textarea id="field-filter-rules" rows="2" spellcheck="false" placeholder="stream&#10;thinkProcess"></textarea>
+          </div>
         </div>
       </div>
       <div class="tool-panel json-pane">
         <div class="json-panel-header">
           <label>输出</label>
           <div class="json-header-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-output">复制输出</button>
             <button type="button" class="btn btn-secondary btn-sm" id="btn-toggle-tree">全部展开</button>
             <button type="button" class="btn btn-secondary btn-sm" id="btn-json-full">页面全屏</button>
           </div>
@@ -57,6 +65,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   type JsonPath = Array<string | number>;
 
   const PATH_KEY = 'json-viewer-expand-paths';
+  const FILTER_KEY = 'json-viewer-field-filters';
 
   const input = document.getElementById('json-input') as HTMLTextAreaElement;
   const placeholder = document.getElementById('json-placeholder')!;
@@ -68,15 +77,19 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   const fullBtn = document.getElementById('btn-json-full')!;
   const workbench = document.getElementById('json-workbench')!;
   const expandRulesEl = document.getElementById('path-expand-rules') as HTMLTextAreaElement;
+  const fieldFilterEl = document.getElementById('field-filter-rules') as HTMLTextAreaElement;
 
+  let rawData: any = null;
   let lastData: any = null;
   let treeExpanded = false;
   let forceManualCollapse = false;
   let previewTimer: number | null = null;
   let pathTimer: number | null = null;
+  let filterTimer: number | null = null;
   let editor: ReturnType<typeof createJSONEditor> | null = null;
 
   let pathConfig = { expandPaths: [] as string[] };
+  let fieldConfig = { includeKeys: [] as string[] };
 
   function ensureEditor() {
     if (editor) return editor;
@@ -115,9 +128,25 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     expandRulesEl.value = pathConfig.expandPaths.join('\n');
   }
 
+  function loadFieldRules() {
+    try {
+      const raw = localStorage.getItem(FILTER_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (Array.isArray(saved.includeKeys)) fieldConfig.includeKeys = saved.includeKeys;
+      }
+    } catch {}
+    fieldFilterEl.value = fieldConfig.includeKeys.join('\n');
+  }
+
   function syncPathRulesFromInput() {
     pathConfig.expandPaths = expandRulesEl.value.split('\n').map((s) => s.trim()).filter(Boolean);
     localStorage.setItem(PATH_KEY, JSON.stringify(pathConfig));
+  }
+
+  function syncFieldRulesFromInput() {
+    fieldConfig.includeKeys = [...new Set(fieldFilterEl.value.split('\n').map((s) => s.trim()).filter(Boolean))];
+    localStorage.setItem(FILTER_KEY, JSON.stringify(fieldConfig));
   }
 
   function showMsg(text: string, type: 'error' | 'success') {
@@ -143,7 +172,6 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     return path.map(String).join('.');
   }
 
-  // 后缀/简写匹配：function、tools.*.function、chatData.tools.*.function 均可
   function pathMatchesExpand(path: string, pattern: string) {
     const norm = normalizePath(path);
     const pat = pattern.trim();
@@ -168,6 +196,42 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
   function pathKeyToJsonPath(key: string): JsonPath {
     return key.split('.').map((seg) => (/^\d+$/.test(seg) ? Number(seg) : seg));
+  }
+
+  function isPlainObject(value: unknown) {
+    return value != null && typeof value == 'object' && !Array.isArray(value);
+  }
+
+  function filterDataByKeys(data: unknown, keys: Set<string>): unknown {
+    if (!keys.size) return data;
+
+    if (Array.isArray(data)) {
+      const next = data.map((item) => filterDataByKeys(item, keys)).filter((item) => item !== undefined);
+      return next.length ? next : undefined;
+    }
+
+    if (!isPlainObject(data)) return undefined;
+
+    const next: Record<string, unknown> = {};
+    Object.entries(data as Record<string, unknown>).forEach(([key, value]) => {
+      if (keys.has(key)) {
+        next[key] = value;
+        return;
+      }
+      const child = filterDataByKeys(value, keys);
+      if (child !== undefined) next[key] = child;
+    });
+
+    return Object.keys(next).length ? next : undefined;
+  }
+
+  function getViewData(data: unknown) {
+    if (!fieldConfig.includeKeys.length) return data;
+    const filtered = filterDataByKeys(data, new Set(fieldConfig.includeKeys));
+    if (filtered !== undefined) return filtered;
+    if (Array.isArray(data)) return [];
+    if (isPlainObject(data)) return {};
+    return data;
   }
 
   function forceCollapseAll() {
@@ -235,6 +299,11 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
       toggleBtn.textContent = '全部展开';
       return;
     }
+    if (fieldConfig.includeKeys.length) {
+      editor.expand([], expandAll);
+      toggleBtn.textContent = '全部折叠';
+      return;
+    }
     if (pathConfig.expandPaths.length) {
       forceCollapseAll();
       applyPathRules();
@@ -247,7 +316,6 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   function applyTreeExpandState() {
     if (!editor || lastData == null) return;
     editor.set({ json: lastData });
-    // ponytail: set 后等一帧再改展开态，否则 vanilla-jsoneditor 不生效
     requestAnimationFrame(() => runExpandState());
   }
 
@@ -274,22 +342,35 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     if (pathTimer) window.clearTimeout(pathTimer);
     pathTimer = window.setTimeout(() => {
       syncPathRulesFromInput();
-      if (lastData == null || treeExpanded || !editor) return;
+      if (lastData == null || treeExpanded || !editor || fieldConfig.includeKeys.length) return;
       forceManualCollapse = false;
       runExpandState();
     }, 400);
   }
 
+  function applyFieldFilters() {
+    if (filterTimer) window.clearTimeout(filterTimer);
+    filterTimer = window.setTimeout(() => {
+      syncFieldRulesFromInput();
+      if (rawData == null) return;
+      treeExpanded = false;
+      forceManualCollapse = false;
+      renderTree(rawData);
+    }, 250);
+  }
+
   function renderTree(data: any) {
-    lastData = data;
+    rawData = data;
+    lastData = getViewData(data);
     forceManualCollapse = false;
     showTreeView();
     ensureEditor();
     applyTreeExpandState();
-    updateStats(JSON.stringify(data, null, 2), outputStats);
+    updateStats(JSON.stringify(lastData, null, 2), outputStats);
   }
 
   function renderEmpty() {
+    rawData = null;
     lastData = null;
     showPlaceholder();
     updateStats('', outputStats);
@@ -381,6 +462,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   }
 
   loadPathRules();
+  loadFieldRules();
 
   input.addEventListener('input', () => {
     updateStats(input.value, inputStats);
@@ -388,6 +470,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   });
 
   expandRulesEl.addEventListener('input', schedulePathApply);
+  fieldFilterEl.addEventListener('input', applyFieldFilters);
 
   document.getElementById('btn-format')!.addEventListener('click', runFormat);
   document.getElementById('btn-minify')!.addEventListener('click', runMinify);
@@ -405,8 +488,33 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     }
   });
 
+  document.getElementById('btn-copy-output')!.addEventListener('click', async () => {
+    if (lastData == null) {
+      showMsg('当前没有可复制的输出内容', 'error');
+      return;
+    }
+    await navigator.clipboard.writeText(JSON.stringify(lastData, null, 2));
+    showMsg('已复制当前输出 JSON', 'success');
+  });
+
+  document.getElementById('btn-clear-field-filter')!.addEventListener('click', () => {
+    fieldFilterEl.value = '';
+    syncFieldRulesFromInput();
+    if (rawData == null) return;
+    treeExpanded = false;
+    forceManualCollapse = false;
+    renderTree(rawData);
+    showMsg('已清空字段筛选', 'success');
+  });
+
   toggleBtn.addEventListener('click', () => {
     if (lastData == null) return;
+    if (fieldConfig.includeKeys.length) {
+      forceManualCollapse = !forceManualCollapse;
+      treeExpanded = false;
+      runExpandState();
+      return;
+    }
     if (treeExpanded) {
       treeExpanded = false;
       forceManualCollapse = true;

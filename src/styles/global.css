@@ -895,6 +895,17 @@ main {
   margin-bottom: 6px;
 }
 
+.json-rule-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.json-rule-head label {
+  margin-bottom: 0;
+}
+
 .json-expand-rules textarea {
   width: 100%;
   min-height: 52px;
