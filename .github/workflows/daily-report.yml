@@ -50,6 +50,8 @@ jobs:
         run: |
           title="SEO 每日报告（自动）"
           body=$(cat reports/daily/latest-report.md)
+          # 仓库可能没有 seo 标签，先确保存在
+          gh label create "seo" --color "B45309" --description "SEO 自动报告" 2>/dev/null || true
           issue=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number')
           if [ -n "$issue" ] && [ "$issue" != "null" ]; then
             gh issue comment "$issue" --body "$body"
