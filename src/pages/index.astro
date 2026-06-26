@@ -1,31 +1,48 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import tools from '../data/tools.json';
+import categories from '../data/categories.json';
+
+// 按分类分组工具
+const grouped = categories.map((cat) => ({
+  ...cat,
+  tools: tools.filter((t) => t.category == cat.id),
+})).filter((g) => g.tools.length > 0);
 ---
 
 <BaseLayout
   title="轻工具箱"
   description="免费在线工具：JSON 查看器、时间戳转换、Base64 编解码、MD5 加密、图片合并压缩。浏览器本地处理，安全快速。"
+  wide={true}
 >
   <div class="home-content">
-  <section class="hero">
-    <h1>轻工具箱</h1>
-    <p>常用开发与生活小工具，全部在浏览器本地运行，数据不上传服务器</p>
-  </section>
+    <section class="home-intro">
+      <div>
+        <h1>轻工具箱</h1>
+        <p>常用开发与生活小工具，本地运行，安全快速。</p>
+      </div>
+      <div class="home-badges">
+        <span>本地处理</span>
+        <span>免费实用</span>
+        <span>轻量高效</span>
+      </div>
+    </section>
 
-  <div class="tool-grid">
-    {tools.map((tool) => (
-      <a href={`/tools/${tool.slug}`} class="tool-card">
-        <div class="icon">{tool.icon}</div>
-        <h3>{tool.name}</h3>
-        <p>{tool.desc}</p>
-        <div class="tags">
-          {tool.tags.map((tag) => (
-            <span class="tag">{tag}</span>
+    {grouped.map((group) => (
+      <section class="tool-category">
+        <h2 class="category-title">{group.name}</h2>
+        <div class="tool-grid">
+          {group.tools.map((tool) => (
+            <a href={`/tools/${tool.slug}`} class="tool-card">
+              <div class="icon">{tool.icon}</div>
+              <div class="tool-card-body">
+                <h3>{tool.name}</h3>
+                <p>{tool.desc}</p>
+              </div>
+            </a>
           ))}
         </div>
-      </a>
+      </section>
     ))}
-  </div>
   </div>
 </BaseLayout>

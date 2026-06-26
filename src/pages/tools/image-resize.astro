@@ -1,0 +1,303 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="图片改尺寸与裁剪"
+  description="图片改尺寸与裁剪在线工具，支持调整宽高、等比缩放、常用比例裁剪与 JPG、PNG、WebP 本地导出。"
+  currentSlug="image-resize"
+>
+  <h1 slot="header">图片改尺寸</h1>
+  <p class="intro">本地调整图片宽高、比例与裁剪区域，支持导出 JPG、PNG、WebP，图片不会上传服务器。</p>
+
+  <div class="compress-workspace resize-workspace">
+    <div class="compress-panel">
+      <div class="field-label">原图（点击上传）</div>
+      <label class="img-slot img-slot-upload resize-preview-slot" id="resize-drop">
+        <input type="file" id="resize-file" accept="image/*" />
+        <span id="resize-placeholder">点击或拖拽上传图片</span>
+        <img id="resize-preview" alt="原图预览" hidden />
+      </label>
+      <div class="img-meta" id="resize-meta">—</div>
+    </div>
+
+    <div class="compress-panel compress-controls">
+      <div>
+        <label class="field-label" for="resize-mode">处理方式</label>
+        <select id="resize-mode">
+          <option value="fit">改尺寸（完整保留）</option>
+          <option value="crop">裁剪填充比例</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="field-label" for="resize-preset">常用尺寸</label>
+        <select id="resize-preset">
+          <option value="custom">自定义</option>
+          <option value="1:1">正方形 1:1</option>
+          <option value="16:9">横图 16:9</option>
+          <option value="4:3">横图 4:3</option>
+          <option value="3:4">竖图 3:4</option>
+          <option value="9:16">竖屏 9:16</option>
+          <option value="avatar">头像 512×512</option>
+          <option value="cover">封面 1280×720</option>
+        </select>
+      </div>
+
+      <div class="size-input-row">
+        <div>
+          <label class="field-label" for="resize-w">宽 (px)</label>
+          <input type="number" id="resize-w" min="1" placeholder="宽度" />
+        </div>
+        <div>
+          <label class="field-label" for="resize-h">高 (px)</label>
+          <input type="number" id="resize-h" min="1" placeholder="高度" />
+        </div>
+      </div>
+
+      <label class="resize-check">
+        <input type="checkbox" id="resize-lock" checked />
+        <span>锁定原图比例</span>
+      </label>
+
+      <div>
+        <label class="field-label" for="resize-format">输出格式</label>
+        <select id="resize-format">
+          <option value="image/jpeg">JPG</option>
+          <option value="image/png">PNG</option>
+          <option value="image/webp">WebP</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="field-label">质量 <span class="range-val" id="resize-quality-val">92%</span></label>
+        <div class="range-row">
+          <input type="range" id="resize-quality" min="10" max="100" value="92" />
+        </div>
+      </div>
+
+      <div class="btn-row compress-btn-row">
+        <button class="btn" id="btn-resize">生成图片</button>
+        <a class="btn btn-secondary" id="btn-resize-dl" download="resized.jpg" hidden>下载</a>
+      </div>
+      <div id="resize-msg"></div>
+    </div>
+
+    <div class="compress-panel">
+      <div class="field-label">处理后</div>
+      <div class="img-slot resize-preview-slot" id="resize-output"><span>等待生成</span></div>
+      <div class="img-meta" id="resize-out-meta">—</div>
+    </div>
+  </div>
+
+  <div class="compress-summary" id="resize-summary" style="display:none"></div>
+
+  <section class="section">
+    <h2>适合什么场景？</h2>
+    <ul>
+      <li>把图片改成指定宽高，比如网站上传、后台配图、文章封面。</li>
+      <li>按 1:1、16:9、3:4、9:16 等比例居中裁剪。</li>
+      <li>本地导出 JPG、PNG、WebP，图片不会上传服务器。</li>
+    </ul>
+  </section>
+</ToolLayout>
+
+<script>
+  const fileInput = document.getElementById('resize-file') as HTMLInputElement;
+  const drop = document.getElementById('resize-drop')!;
+  const placeholder = document.getElementById('resize-placeholder')!;
+  const preview = document.getElementById('resize-preview') as HTMLImageElement;
+  const meta = document.getElementById('resize-meta')!;
+  const out = document.getElementById('resize-output')!;
+  const outMeta = document.getElementById('resize-out-meta')!;
+  const mode = document.getElementById('resize-mode') as HTMLSelectElement;
+  const preset = document.getElementById('resize-preset') as HTMLSelectElement;
+  const widthInput = document.getElementById('resize-w') as HTMLInputElement;
+  const heightInput = document.getElementById('resize-h') as HTMLInputElement;
+  const lock = document.getElementById('resize-lock') as HTMLInputElement;
+  const format = document.getElementById('resize-format') as HTMLSelectElement;
+  const quality = document.getElementById('resize-quality') as HTMLInputElement;
+  const qualityVal = document.getElementById('resize-quality-val')!;
+  const download = document.getElementById('btn-resize-dl') as HTMLAnchorElement;
+  const msg = document.getElementById('resize-msg')!;
+  const summary = document.getElementById('resize-summary')!;
+
+  let currentFile: File | null = null;
+  let imageUrl = '';
+  let outputUrl = '';
+  let img = new Image();
+  let origW = 0;
+  let origH = 0;
+  let debounceTimer: ReturnType<typeof setTimeout>;
+
+  function fmtSize(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+  }
+
+  function canvasToBlob(target: HTMLCanvasElement, mime: string, q: number) {
+    return new Promise<Blob>((resolve, reject) => {
+      target.toBlob((blob) => blob ? resolve(blob) : reject(new Error('生成失败')), mime, q);
+    });
+  }
+
+  function setSize(w: number, h: number) {
+    widthInput.value = String(Math.max(1, Math.round(w)));
+    heightInput.value = String(Math.max(1, Math.round(h)));
+  }
+
+  function applyPreset() {
+    if (!origW || !origH) return;
+    const value = preset.value;
+    if (value == 'custom') return;
+    if (value == 'avatar') {
+      setSize(512, 512);
+      mode.value = 'crop';
+      lock.checked = false;
+      render();
+      return;
+    }
+    if (value == 'cover') {
+      setSize(1280, 720);
+      mode.value = 'crop';
+      lock.checked = false;
+      render();
+      return;
+    }
+    const [rw, rh] = value.split(':').map(Number);
+    const base = Math.min(origW, 1280);
+    setSize(base, Math.round(base * rh / rw));
+    mode.value = 'crop';
+    lock.checked = false;
+    render();
+  }
+
+  function drawSource(ctx: CanvasRenderingContext2D, outW: number, outH: number) {
+    if (mode.value == 'fit') {
+      ctx.drawImage(img, 0, 0, outW, outH);
+      return;
+    }
+    const scale = Math.max(outW / origW, outH / origH);
+    const cropW = outW / scale;
+    const cropH = outH / scale;
+    const cropX = (origW - cropW) / 2;
+    const cropY = (origH - cropH) / 2;
+    ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, outW, outH);
+  }
+
+  async function render() {
+    if (!currentFile || !origW || !origH) return;
+    const outW = Math.max(1, Math.round(Number(widthInput.value) || origW));
+    const outH = Math.max(1, Math.round(Number(heightInput.value) || origH));
+    const canvas = document.createElement('canvas');
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext('2d')!;
+    if (format.value == 'image/jpeg') {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, outW, outH);
+    } else {
+      ctx.clearRect(0, 0, outW, outH);
+    }
+    drawSource(ctx, outW, outH);
+
+    try {
+      const mime = format.value;
+      const q = Number(quality.value) / 100;
+      const blob = await canvasToBlob(canvas, mime, q);
+      if (outputUrl) URL.revokeObjectURL(outputUrl);
+      outputUrl = URL.createObjectURL(blob);
+      out.innerHTML = `<img src="${outputUrl}" alt="处理后的图片预览" />`;
+      download.href = outputUrl;
+      const ext = mime == 'image/jpeg' ? 'jpg' : mime.split('/')[1];
+      download.download = `resized-${outW}x${outH}.${ext}`;
+      download.hidden = false;
+      outMeta.textContent = `${outW}×${outH} px · ${fmtSize(blob.size)} · ${ext.toUpperCase()}`;
+      summary.style.display = 'flex';
+      summary.innerHTML = `
+        <span>原图：<strong>${origW}×${origH}</strong> · ${currentFile.name}</span>
+        <span>输出：<strong>${outW}×${outH}</strong> · ${mode.value == 'crop' ? '裁剪填充' : '完整缩放'}</span>
+        <span>格式：<strong>${ext.toUpperCase()}</strong> · 质量 ${quality.value}%</span>
+      `;
+      showMsg('图片已生成', 'success');
+    } catch {
+      showMsg('生成失败，请换一张图片试试', 'error');
+    }
+  }
+
+  function renderSoon() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(render, 220);
+  }
+
+  function useFile(file: File) {
+    if (!file.type.startsWith('image/')) {
+      showMsg('请上传图片文件', 'error');
+      return;
+    }
+    currentFile = file;
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+    imageUrl = URL.createObjectURL(file);
+    img = new Image();
+    img.onload = () => {
+      origW = img.width;
+      origH = img.height;
+      placeholder.hidden = true;
+      preview.src = imageUrl;
+      preview.hidden = false;
+      setSize(origW, origH);
+      preset.value = 'custom';
+      lock.checked = true;
+      mode.value = 'fit';
+      meta.textContent = `${file.name} · ${origW}×${origH} px · ${fmtSize(file.size)}`;
+      render();
+    };
+    img.onerror = () => showMsg('图片读取失败，请换一张图片', 'error');
+    img.src = imageUrl;
+  }
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (file) useFile(file);
+  });
+
+  drop.addEventListener('dragover', (e) => e.preventDefault());
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files?.[0];
+    if (file) useFile(file);
+  });
+
+  widthInput.addEventListener('input', () => {
+    if (lock.checked && origW && origH) {
+      const w = Number(widthInput.value);
+      if (w > 0) heightInput.value = String(Math.round(origH * (w / origW)));
+    }
+    preset.value = 'custom';
+    renderSoon();
+  });
+
+  heightInput.addEventListener('input', () => {
+    if (lock.checked && origW && origH) {
+      const h = Number(heightInput.value);
+      if (h > 0) widthInput.value = String(Math.round(origW * (h / origH)));
+    }
+    preset.value = 'custom';
+    renderSoon();
+  });
+
+  preset.addEventListener('change', applyPreset);
+  mode.addEventListener('change', renderSoon);
+  format.addEventListener('change', renderSoon);
+  quality.addEventListener('input', () => {
+    qualityVal.textContent = quality.value + '%';
+    renderSoon();
+  });
+  document.getElementById('btn-resize')!.addEventListener('click', render);
+</script>

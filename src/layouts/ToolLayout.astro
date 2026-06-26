@@ -6,11 +6,6 @@ const { title, description, currentSlug } = Astro.props;
 ---
 
 <BaseLayout title={title} description={description} wide={true}>
-  <nav class="tool-sidebar-mobile" aria-label="工具导航">
-    {tools.map((t) => (
-      <a href={`/tools/${t.slug}`} class={t.slug == currentSlug ? 'active' : ''}>{t.name}</a>
-    ))}
-  </nav>
   <div class="tool-layout">
     <aside class="tool-sidebar" aria-label="工具导航">
       <div class="tool-sidebar-title">全部工具</div>
