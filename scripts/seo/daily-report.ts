@@ -25,8 +25,9 @@ async function main() {
     '',
   ];
 
-  const hasGsc = fs.existsSync(path.join(REPORT_DIR, 'gsc-pages.csv')) &&
-    !fs.readFileSync(path.join(REPORT_DIR, 'gsc-pages.csv'), 'utf-8').includes('no_credentials');
+  const gscFile = path.join(REPORT_DIR, 'gsc-pages.csv');
+  const gscContent = fs.existsSync(gscFile) ? fs.readFileSync(gscFile, 'utf-8') : '';
+  const hasGsc = gscContent && !gscContent.includes('no_credentials') && !gscContent.includes('fetch_failed');
 
   if (hasGsc) {
     lines.push('- GSC 数据：已拉取');
@@ -37,6 +38,15 @@ async function main() {
     for (const o of opportunities.slice(0, 10)) {
       lines.push(`- **${o.query || o.page}** | 曝光 ${o.impressions} | 排名 ${o.position?.toFixed(1)} | 分数 ${o.score}`);
     }
+  } else if (gscContent.includes('fetch_failed')) {
+    lines.push('- GSC 数据：拉取失败（Google API 网络临时错误，已自动重试）');
+    lines.push('- 日报仍正常生成，明日定时任务会再次拉取');
+    lines.push('');
+    lines.push('## 冷启动建议');
+    lines.push('');
+    lines.push('- 提交 sitemap 到 Google Search Console');
+    lines.push('- 在知乎/V2EX 等分享实用工具页');
+    lines.push('- 每周新增 1 个工具或优化 1 个页面 title');
   } else {
     lines.push('- GSC 数据：未配置（待添加 `GOOGLE_APPLICATION_CREDENTIALS_JSON`）');
     lines.push('');

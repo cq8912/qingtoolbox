@@ -7,7 +7,7 @@ const REPORT_DIR = 'reports/daily';
 function parseCsv(file: string): GscRow[] {
   if (!fs.existsSync(file)) return [];
   const text = fs.readFileSync(file, 'utf-8').trim();
-  if (text.includes('skipped,no_credentials')) return [];
+  if (text.includes('skipped,no_credentials') || text.includes('fetch_failed')) return [];
 
   const lines = text.split('\n').slice(1);
   return lines.map((line) => {

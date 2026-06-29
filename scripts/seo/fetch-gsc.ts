@@ -5,6 +5,44 @@ const REPORT_DIR = 'reports/daily';
 const SITE_URL = process.env.GSC_SITE_URL || 'https://tools.cqzzz.top/';
 const CREDENTIALS_JSON = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
 
+function writePlaceholder(reason: string, message: string) {
+  const placeholder = `status,message\n${reason},${message}\n`;
+  fs.writeFileSync(path.join(REPORT_DIR, 'gsc-pages.csv'), placeholder);
+  fs.writeFileSync(path.join(REPORT_DIR, 'gsc-queries.csv'), placeholder);
+  fs.writeFileSync(path.join(REPORT_DIR, 'gsc-page-query.csv'), placeholder);
+}
+
+// ponytail: 仅重试常见瞬时网络错误，鉴权/权限类错误直接抛出
+function isRetryableError(err: unknown) {
+  const e = err as { code?: string; message?: string; error?: { code?: string } };
+  const code = e?.code || e?.error?.code || '';
+  const msg = String(e?.message || err);
+  return (
+    code == 'ERR_STREAM_PREMATURE_CLOSE' ||
+    code == 'ECONNRESET' ||
+    code == 'ETIMEDOUT' ||
+    code == 'ENOTFOUND' ||
+    msg.includes('Premature close') ||
+    msg.includes('socket hang up')
+  );
+}
+
+async function withRetry<T>(fn: () => Promise<T>, label: string, max = 4) {
+  let lastErr: unknown;
+  for (let i = 0; i < max; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isRetryableError(err) || i == max - 1) throw err;
+      const delay = 2000 * Math.pow(2, i);
+      console.warn(`[retry ${i + 1}/${max - 1}] ${label} 失败，${delay}ms 后重试`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
 function parseCredentials(raw: string) {
   const cleaned = raw.replace(/^\uFEFF/, '').trim();
   return JSON.parse(cleaned);
@@ -75,32 +113,32 @@ async function main() {
   fs.mkdirSync(REPORT_DIR, { recursive: true });
 
   if (!CREDENTIALS_JSON) {
-    // 无凭证时写占位文件，保证流水线不中断
-    const placeholder = 'status,message\nskipped,no_credentials\n';
-    fs.writeFileSync(path.join(REPORT_DIR, 'gsc-pages.csv'), placeholder);
-    fs.writeFileSync(path.join(REPORT_DIR, 'gsc-queries.csv'), placeholder);
-    fs.writeFileSync(path.join(REPORT_DIR, 'gsc-page-query.csv'), placeholder);
+    writePlaceholder('skipped', 'no_credentials');
     console.log('已写入占位 CSV（待配置 GSC 凭证）');
     return;
   }
 
-  const pageRows = await queryGsc(['page'], startDate, endDate);
-  const queryRows = await queryGsc(['query'], startDate, endDate);
-  const pqRows = await queryGsc(['page', 'query'], startDate, endDate);
+  try {
+    const pageRows = await withRetry(() => queryGsc(['page'], startDate, endDate), 'pages');
+    const queryRows = await withRetry(() => queryGsc(['query'], startDate, endDate), 'queries');
+    const pqRows = await withRetry(() => queryGsc(['page', 'query'], startDate, endDate), 'page-query');
 
-  fs.writeFileSync(path.join(REPORT_DIR, 'gsc-pages.csv'), toCsv(pageRows, ['page']));
-  fs.writeFileSync(path.join(REPORT_DIR, 'gsc-queries.csv'), toCsv(queryRows, ['query']));
-  fs.writeFileSync(path.join(REPORT_DIR, 'gsc-page-query.csv'), toCsv(pqRows, ['page', 'query']));
+    fs.writeFileSync(path.join(REPORT_DIR, 'gsc-pages.csv'), toCsv(pageRows, ['page']));
+    fs.writeFileSync(path.join(REPORT_DIR, 'gsc-queries.csv'), toCsv(queryRows, ['query']));
+    fs.writeFileSync(path.join(REPORT_DIR, 'gsc-page-query.csv'), toCsv(pqRows, ['page', 'query']));
 
-  // 同步 latest 副本供 Agent 读取
-  fs.copyFileSync(path.join(REPORT_DIR, 'gsc-pages.csv'), path.join(REPORT_DIR, 'latest-gsc-pages.csv'));
-  fs.copyFileSync(path.join(REPORT_DIR, 'gsc-queries.csv'), path.join(REPORT_DIR, 'latest-gsc-queries.csv'));
-  fs.copyFileSync(path.join(REPORT_DIR, 'gsc-page-query.csv'), path.join(REPORT_DIR, 'latest-gsc-page-query.csv'));
+    // 同步 latest 副本供 Agent 读取
+    fs.copyFileSync(path.join(REPORT_DIR, 'gsc-pages.csv'), path.join(REPORT_DIR, 'latest-gsc-pages.csv'));
+    fs.copyFileSync(path.join(REPORT_DIR, 'gsc-queries.csv'), path.join(REPORT_DIR, 'latest-gsc-queries.csv'));
+    fs.copyFileSync(path.join(REPORT_DIR, 'gsc-page-query.csv'), path.join(REPORT_DIR, 'latest-gsc-page-query.csv'));
 
-  console.log(`GSC 数据已导出：pages=${pageRows.length} queries=${queryRows.length} page-query=${pqRows.length}`);
+    console.log(`GSC 数据已导出：pages=${pageRows.length} queries=${queryRows.length} page-query=${pqRows.length}`);
+  } catch (err) {
+    // 拉取失败不阻断日报，写占位后正常退出
+    const msg = String((err as Error)?.message || err).replace(/[\r\n,]/g, ' ').slice(0, 200);
+    console.error('[warn] GSC 拉取失败，写入占位文件继续日报:', msg);
+    writePlaceholder('fetch_failed', msg);
+  }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main();
