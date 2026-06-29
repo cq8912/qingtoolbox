@@ -9,6 +9,7 @@
     "preview": "astro preview",
     "lint": "astro check",
     "seo:fetch-gsc": "tsx scripts/seo/fetch-gsc.ts",
+    "seo:fetch-bing": "tsx scripts/seo/fetch-bing.ts",
     "seo:analyze": "tsx scripts/seo/analyze-gsc.ts",
     "seo:daily-report": "tsx scripts/seo/daily-report.ts",
     "seo:auto-optimize": "tsx scripts/seo/auto-optimize.ts",

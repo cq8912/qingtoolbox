@@ -132,7 +132,10 @@ async function main() {
     fs.copyFileSync(path.join(REPORT_DIR, 'gsc-queries.csv'), path.join(REPORT_DIR, 'latest-gsc-queries.csv'));
     fs.copyFileSync(path.join(REPORT_DIR, 'gsc-page-query.csv'), path.join(REPORT_DIR, 'latest-gsc-page-query.csv'));
 
-    console.log(`GSC 数据已导出：pages=${pageRows.length} queries=${queryRows.length} page-query=${pqRows.length}`);
+    console.log(`GSC 数据已导出：pages=${pageRows.length} queries=${queryRows.length} page-query=${pqRows.length}（${startDate} ~ ${endDate}）`);
+    if (pageRows.length == 0) {
+      console.warn('[warn] GSC 返回 0 条记录：站点可能尚无搜索曝光，或 GSC 资源 URL 与 Secret 不一致');
+    }
   } catch (err) {
     // 拉取失败不阻断日报，写占位后正常退出
     const msg = String((err as Error)?.message || err).replace(/[\r\n,]/g, ' ').slice(0, 200);

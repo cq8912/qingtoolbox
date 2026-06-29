@@ -31,6 +31,12 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
         run: npm run seo:fetch-gsc
 
+      - name: Fetch Bing Webmaster data
+        env:
+          BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
+          BING_SITE_URL: https://tools.cqzzz.top/
+        run: npm run seo:fetch-bing
+
       - name: Analyze opportunities
         run: npm run seo:analyze
 
