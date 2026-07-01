@@ -26,8 +26,12 @@ jobs:
         env:
           GSC_SITE_URL: ${{ secrets.GSC_SITE_URL }}
           GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS_JSON }}
+          BING_WEBMASTER_API_KEY: ${{ secrets.BING_WEBMASTER_API_KEY }}
+          BING_SITE_URL: https://tools.cqzzz.top/
         run: |
           npm run seo:fetch-gsc
+          npm run seo:fetch-bing
+          npm run seo:keyword-hints
           npm run seo:analyze
           npm run seo:daily-report
 

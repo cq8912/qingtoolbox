@@ -37,6 +37,9 @@ jobs:
           BING_SITE_URL: https://tools.cqzzz.top/
         run: npm run seo:fetch-bing
 
+      - name: Collect keyword hints
+        run: npm run seo:keyword-hints
+
       - name: Analyze opportunities
         run: npm run seo:analyze
 

@@ -5,6 +5,42 @@ const today = new Date().toISOString().slice(0, 10);
 const REPORT_DIR = 'reports/daily';
 const WEEKLY_DIR = 'reports/weekly';
 
+function toolCount() {
+  const f = 'src/data/tools.json';
+  if (!fs.existsSync(f)) return 0;
+  return JSON.parse(fs.readFileSync(f, 'utf-8')).length;
+}
+
+function keywordHintsLines() {
+  const f = path.join(REPORT_DIR, 'keyword-hints.json');
+  if (!fs.existsSync(f)) return [];
+  const data = JSON.parse(fs.readFileSync(f, 'utf-8'));
+  const lines = [
+    '',
+    '## 关键词灵感',
+    '',
+    `> 来源：Google / Bing / 百度搜索联想 · 更新：${String(data.generatedAt || '').slice(0, 10) || '未知'}`,
+    '',
+    '### 高频联想词',
+    '',
+  ];
+  if ((data.topSuggestions || []).length) {
+    for (const s of data.topSuggestions.slice(0, 12)) {
+      lines.push(`- **${s.query}**（${s.hits} 个引擎出现）`);
+    }
+  } else {
+    lines.push('- 暂无数据');
+  }
+  lines.push('');
+  lines.push('### 按工具');
+  lines.push('');
+  for (const h of (data.hints || []).slice(0, 8)) {
+    const merged = [...new Set([...(h.baidu || []), ...(h.google || []), ...(h.bing || [])])].slice(0, 4);
+    lines.push(`- **${h.name}**（种子：${h.seed}）→ ${merged.join('、') || '无'}`);
+  }
+  return lines;
+}
+
 async function main() {
   fs.mkdirSync(REPORT_DIR, { recursive: true });
   fs.mkdirSync(WEEKLY_DIR, { recursive: true });
@@ -102,10 +138,12 @@ async function main() {
     lines.push('- 未拉取');
   }
 
+  lines.push(...keywordHintsLines());
+
   lines.push('');
   lines.push('## 站点健康');
   lines.push('');
-  lines.push('- 工具页：6 个已上线');
+  lines.push(`- 工具页：${toolCount()} 个已上线`);
   lines.push('- 构建状态：见 GitHub Actions CI');
 
   const reportPath = path.join(REPORT_DIR, `${today}-report.md`);
@@ -120,9 +158,13 @@ async function main() {
       '',
       '## 本周自动建议',
       '',
-      ...opportunities.slice(0, 5).map((o, i) =>
-        `${i + 1}. 优化 \`${o.page}\` 针对关键词「${o.query || '未知'}」`,
-      ),
+      ...(opportunities.length
+        ? opportunities.slice(0, 5).map((o, i) =>
+          `${i + 1}. 优化 \`${o.page}\` 针对关键词「${o.query || '未知'}」`,
+        )
+        : ['1. 暂无 GSC 机会数据，优先参考下方关键词灵感优化 title / meta']),
+      '',
+      ...keywordHintsLines().slice(1),
       '',
       '## 待执行（Agent 自动）',
       '',
