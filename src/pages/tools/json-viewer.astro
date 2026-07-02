@@ -205,6 +205,10 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   function filterDataByKeys(data: unknown, keys: Set<string>): unknown {
     if (!keys.size) return data;
 
+    // 忽略大小写匹配键名
+    const keysLower = new Set([...keys].map((k) => k.toLowerCase()));
+    const keyHit = (key: string) => keysLower.has(key.toLowerCase());
+
     if (Array.isArray(data)) {
       const next = data.map((item) => filterDataByKeys(item, keys)).filter((item) => item !== undefined);
       return next.length ? next : undefined;
@@ -214,7 +218,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
     const next: Record<string, unknown> = {};
     Object.entries(data as Record<string, unknown>).forEach(([key, value]) => {
-      if (keys.has(key)) {
+      if (keyHit(key)) {
         next[key] = value;
         return;
       }
@@ -315,8 +319,24 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
   function applyTreeExpandState() {
     if (!editor || lastData == null) return;
-    editor.set({ json: lastData });
+    // 深拷贝，避免编辑器复用旧树结构导致清空筛选后不刷新
+    const view = JSON.parse(JSON.stringify(lastData));
+    editor.set({ json: view });
+    editor.refresh();
     requestAnimationFrame(() => runExpandState());
+  }
+
+  function renderView() {
+    if (rawData == null) {
+      renderEmpty();
+      return;
+    }
+    lastData = getViewData(rawData);
+    forceManualCollapse = false;
+    showTreeView();
+    ensureEditor();
+    applyTreeExpandState();
+    updateStats(JSON.stringify(lastData, null, 2), outputStats);
   }
 
   function collectPaths(data: unknown, prefix: JsonPath = []): JsonPath[] {
@@ -355,18 +375,13 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
       if (rawData == null) return;
       treeExpanded = false;
       forceManualCollapse = false;
-      renderTree(rawData);
+      renderView();
     }, 250);
   }
 
   function renderTree(data: any) {
     rawData = data;
-    lastData = getViewData(data);
-    forceManualCollapse = false;
-    showTreeView();
-    ensureEditor();
-    applyTreeExpandState();
-    updateStats(JSON.stringify(lastData, null, 2), outputStats);
+    renderView();
   }
 
   function renderEmpty() {
@@ -498,12 +513,14 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
   });
 
   document.getElementById('btn-clear-field-filter')!.addEventListener('click', () => {
+    if (filterTimer) window.clearTimeout(filterTimer);
     fieldFilterEl.value = '';
-    syncFieldRulesFromInput();
+    fieldConfig.includeKeys = [];
+    localStorage.setItem(FILTER_KEY, JSON.stringify(fieldConfig));
     if (rawData == null) return;
     treeExpanded = false;
     forceManualCollapse = false;
-    renderTree(rawData);
+    renderView();
     showMsg('已清空字段筛选', 'success');
   });
 
