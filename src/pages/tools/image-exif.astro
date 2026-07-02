@@ -79,7 +79,44 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     ProcessingSoftware: '处理软件',
   };
 
-  const AI_KEY = /ai|digital\s*source|creator|generative|trained|synthetic|midjourney|stable|dall|gpt|firefly|contentauth|c2pa|manifest/i;
+  const AI_KEY = /ai|digital\s*source|creator|generative|trained|synthetic|midjourney|stable|dall|gpt|firefly|contentauth|c2pa|manifest|openai|chatgpt|dall-e/i;
+
+  function flattenXmp(xmp: unknown): Record<string, unknown> | null {
+    if (!xmp) return null;
+    if (typeof xmp == 'string') return { raw: xmp };
+    const out: Record<string, unknown> = {};
+    for (const [ns, val] of Object.entries(xmp as Record<string, unknown>)) {
+      if (val && typeof val == 'object' && !Array.isArray(val)) {
+        for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+          out[`${ns}:${k}`] = v;
+        }
+      } else {
+        out[ns] = val;
+      }
+    }
+    return out;
+  }
+
+  async function readSegments(buf: ArrayBuffer) {
+    // exifr 7.x 只有 parse/gps，IPTC/XMP 通过 parse 选项读取
+    const segments = await exifr.parse(buf, {
+      tiff: true,
+      ifd0: true,
+      exif: true,
+      iptc: true,
+      xmp: { parse: true },
+      reviveValues: true,
+      mergeOutput: false,
+    }).catch(() => null);
+
+    const gps = await exifr.gps(buf).catch(() => null);
+    const meta = segments
+      ? { ...(segments.ifd0 || {}), ...(segments.exif || {}) }
+      : null;
+    const iptc = (segments?.iptc as Record<string, unknown>) || null;
+    const xmp = flattenXmp(segments?.xmp);
+    return { meta, gps, iptc, xmp, segments };
+  }
 
   function fmtSize(n: number) {
     if (n < 1024) return `${n} B`;
@@ -165,12 +202,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
 
     try {
       const buf = await file.arrayBuffer();
-      const [meta, gps, iptc, xmp] = await Promise.all([
-        exifr.parse(buf, { reviveValues: true }).catch(() => null),
-        exifr.gps(buf).catch(() => null),
-        exifr.iptc(buf).catch(() => null),
-        exifr.xmp(buf).catch(() => null),
-      ]);
+      const { meta, gps, iptc, xmp, segments } = await readSegments(buf);
 
       const basic: [string, string][] = [
         ['文件名', file.name],
@@ -215,7 +247,7 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
         privacyTip.textContent = '⚠ 此图含 GPS 定位信息。分享前建议用本站压缩/转换导出以清除元数据。';
       }
 
-      const raw = { exif: meta, gps, iptc, xmp };
+      const raw = { segments, exif: meta, gps, iptc, xmp };
       rawPre.textContent = JSON.stringify(raw, (_, v) => (v instanceof Date ? v.toISOString() : v), 2);
       rawWrap.style.display = 'block';
     } catch (e) {
