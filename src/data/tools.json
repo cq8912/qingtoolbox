@@ -110,5 +110,13 @@
     "icon": "转",
     "category": "image",
     "tags": ["图片", "格式"]
+  },
+  {
+    "slug": "image-exif",
+    "name": "图片信息",
+    "desc": "查看 EXIF、GPS、XMP 与 AI 元数据",
+    "icon": "信",
+    "category": "image",
+    "tags": ["图片", "隐私", "EXIF"]
   }
 ]

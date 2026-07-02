@@ -1,0 +1,242 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="图片信息查看"
+  description="在线查看图片 EXIF、GPS 定位、XMP/IPTC 元数据与 AI 标记，浏览器本地解析不上传。"
+  currentSlug="image-exif"
+>
+  <h1 slot="header">图片信息查看</h1>
+  <p class="intro">查看 EXIF / GPS / XMP 等元数据，本地解析不上传。压缩或格式转换可清除隐私信息。</p>
+
+  <div class="exif-workspace">
+    <div class="exif-panel">
+      <label class="field-label">选择图片</label>
+      <label class="img-slot img-slot-upload" id="exif-upload-wrap">
+        <input type="file" id="exif-file" accept="image/*" />
+        <span id="exif-placeholder">点击或拖入图片</span>
+        <img id="exif-preview" alt="" style="display:none;max-width:100%;max-height:100%;object-fit:contain" />
+      </label>
+      <div class="img-meta" id="exif-file-meta">—</div>
+      <div class="exif-tip" id="exif-privacy-tip" style="display:none"></div>
+      <p class="exif-links">
+        要清除元数据？用
+        <a href="/tools/image-compress/">图片压缩</a>、
+        <a href="/tools/image-convert/">格式互转</a> 或
+        <a href="/tools/image-resize/">改尺寸</a> 导出即可。
+      </p>
+    </div>
+
+    <div class="exif-panel exif-result-panel">
+      <div class="field-label">解析结果</div>
+      <div id="exif-msg" class="exif-msg">请上传 JPG / PNG / WebP / HEIC 等图片</div>
+      <div id="exif-sections"></div>
+      <details class="exif-raw" id="exif-raw-wrap" style="display:none">
+        <summary>原始 JSON</summary>
+        <pre id="exif-raw"></pre>
+      </details>
+    </div>
+  </div>
+</ToolLayout>
+
+<script>
+  import exifr from 'exifr';
+
+  const fileInput = document.getElementById('exif-file') as HTMLInputElement;
+  const placeholder = document.getElementById('exif-placeholder')!;
+  const preview = document.getElementById('exif-preview') as HTMLImageElement;
+  const fileMeta = document.getElementById('exif-file-meta')!;
+  const privacyTip = document.getElementById('exif-privacy-tip')!;
+  const msg = document.getElementById('exif-msg')!;
+  const sections = document.getElementById('exif-sections')!;
+  const rawWrap = document.getElementById('exif-raw-wrap')!;
+  const rawPre = document.getElementById('exif-raw')!;
+  const uploadWrap = document.getElementById('exif-upload-wrap')!;
+
+  const LABELS: Record<string, string> = {
+    Make: '相机品牌',
+    Model: '相机型号',
+    LensModel: '镜头',
+    Software: '软件',
+    DateTimeOriginal: '拍摄时间',
+    CreateDate: '创建时间',
+    ModifyDate: '修改时间',
+    ExposureTime: '曝光时间',
+    FNumber: '光圈',
+    ISO: 'ISO',
+    FocalLength: '焦距',
+    Flash: '闪光灯',
+    Orientation: '方向',
+    ImageWidth: '图片宽',
+    ImageHeight: '图片高',
+    ExifImageWidth: 'EXIF 宽',
+    ExifImageHeight: 'EXIF 高',
+    ColorSpace: '色彩空间',
+    Artist: '作者',
+    Copyright: '版权',
+    HostComputer: '主机',
+    ProcessingSoftware: '处理软件',
+  };
+
+  const AI_KEY = /ai|digital\s*source|creator|generative|trained|synthetic|midjourney|stable|dall|gpt|firefly|contentauth|c2pa|manifest/i;
+
+  function fmtSize(n: number) {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(2)} MB`;
+  }
+
+  function fmtVal(v: unknown): string {
+    if (v == null) return '—';
+    if (v instanceof Date) return v.toLocaleString('zh-CN');
+    if (Array.isArray(v)) return v.map(fmtVal).join(', ');
+    if (typeof v == 'object') return JSON.stringify(v);
+    return String(v);
+  }
+
+  function flatEntries(obj: Record<string, unknown> | null | undefined) {
+    if (!obj) return [] as [string, string][];
+    return Object.entries(obj)
+      .filter(([, v]) => v != null && v !== '')
+      .map(([k, v]) => [k, fmtVal(v)] as [string, string]);
+  }
+
+  function pickAiEntries(...objs: (Record<string, unknown> | null | undefined)[]) {
+    const out: [string, string][] = [];
+    const seen = new Set<string>();
+    for (const obj of objs) {
+      if (!obj) continue;
+      for (const [k, v] of Object.entries(obj)) {
+        if (v == null || v === '') continue;
+        const key = `${k}:${fmtVal(v)}`;
+        if (seen.has(key)) continue;
+        if (AI_KEY.test(k) || (typeof v == 'string' && AI_KEY.test(v))) {
+          seen.add(key);
+          out.push([k, fmtVal(v)]);
+        }
+      }
+    }
+    return out;
+  }
+
+  function renderSection(title: string, rows: [string, string][], warn = false) {
+    if (!rows.length) return '';
+    const body = rows.map(([k, v]) => {
+      const label = LABELS[k] || k;
+      return `<tr><th>${label}</th><td>${v.replace(/</g, '&lt;')}</td></tr>`;
+    }).join('');
+    return `<section class="exif-section${warn ? ' exif-section-warn' : ''}"><h3>${title}</h3><table class="exif-table"><tbody>${body}</tbody></table></section>`;
+  }
+
+  function loadImageSize(file: File) {
+    return new Promise<{ w: number; h: number }>((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve({ w: img.naturalWidth, h: img.naturalHeight });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('无法读取图片尺寸'));
+      };
+      img.src = url;
+    });
+  }
+
+  async function parseFile(file: File) {
+    msg.textContent = '解析中…';
+    sections.innerHTML = '';
+    rawWrap.style.display = 'none';
+    privacyTip.style.display = 'none';
+
+    const url = URL.createObjectURL(file);
+    preview.src = url;
+    preview.style.display = 'block';
+    placeholder.style.display = 'none';
+
+    let dim = { w: 0, h: 0 };
+    try {
+      dim = await loadImageSize(file);
+    } catch { /* ignore */ }
+
+    fileMeta.textContent = `${file.name} · ${fmtSize(file.size)} · ${file.type || '未知类型'} · ${dim.w}×${dim.h}px`;
+
+    try {
+      const buf = await file.arrayBuffer();
+      const [meta, gps, iptc, xmp] = await Promise.all([
+        exifr.parse(buf, { reviveValues: true }).catch(() => null),
+        exifr.gps(buf).catch(() => null),
+        exifr.iptc(buf).catch(() => null),
+        exifr.xmp(buf).catch(() => null),
+      ]);
+
+      const basic: [string, string][] = [
+        ['文件名', file.name],
+        ['文件大小', fmtSize(file.size)],
+        ['MIME', file.type || '—'],
+        ['像素尺寸', dim.w ? `${dim.w} × ${dim.h}` : '—'],
+      ];
+
+      const shoot = flatEntries(meta as Record<string, unknown>).filter(([k]) =>
+        !['latitude', 'longitude', 'GPSLatitude', 'GPSLongitude'].includes(k),
+      );
+
+      const gpsRows: [string, string][] = [];
+      if (gps && typeof gps.latitude == 'number') {
+        gpsRows.push(['纬度', gps.latitude.toFixed(6)]);
+        gpsRows.push(['经度', gps.longitude.toFixed(6)]);
+        gpsRows.push(['地图', `https://www.google.com/maps?q=${gps.latitude},${gps.longitude}`]);
+      }
+
+      const aiRows = pickAiEntries(meta as Record<string, unknown>, iptc as Record<string, unknown>, xmp as Record<string, unknown>);
+      const iptcRows = flatEntries(iptc as Record<string, unknown>);
+      const xmpRows = flatEntries(xmp as Record<string, unknown>);
+
+      const html = [
+        renderSection('基本信息', basic),
+        renderSection('拍摄 / EXIF', shoot),
+        renderSection('GPS 定位', gpsRows, true),
+        renderSection('AI / 软件相关标记', aiRows, aiRows.length > 0),
+        renderSection('IPTC', iptcRows),
+        renderSection('XMP', xmpRows),
+      ].join('');
+
+      if (!html) {
+        msg.textContent = '未检测到可识别的元数据（PNG/WebP 新导出图通常为空）';
+      } else {
+        msg.textContent = '';
+        sections.innerHTML = html;
+      }
+
+      if (gpsRows.length) {
+        privacyTip.style.display = 'block';
+        privacyTip.textContent = '⚠ 此图含 GPS 定位信息。分享前建议用本站压缩/转换导出以清除元数据。';
+      }
+
+      const raw = { exif: meta, gps, iptc, xmp };
+      rawPre.textContent = JSON.stringify(raw, (_, v) => (v instanceof Date ? v.toISOString() : v), 2);
+      rawWrap.style.display = 'block';
+    } catch (e) {
+      msg.textContent = `解析失败：${(e as Error).message || e}`;
+    }
+  }
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (file) parseFile(file);
+  });
+
+  uploadWrap.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadWrap.classList.add('drag-over');
+  });
+  uploadWrap.addEventListener('dragleave', () => uploadWrap.classList.remove('drag-over'));
+  uploadWrap.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadWrap.classList.remove('drag-over');
+    const file = e.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) parseFile(file);
+  });
+</script>
