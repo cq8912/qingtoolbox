@@ -1738,7 +1738,62 @@ body.json-page-full {
   }
 }
 
+/* 首页 · 轻星图入口 */
+.space-promo {
+  margin: 8px 0 28px;
+}
+
+.space-promo-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-radius: 14px;
+  text-decoration: none;
+  color: inherit;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(70, 110, 200, 0.22), transparent 55%),
+    linear-gradient(135deg, #0b1224 0%, #141c33 55%, #1a1630 100%);
+  border: 1px solid rgba(130, 160, 220, 0.28);
+  box-shadow: 0 10px 28px rgba(10, 20, 40, 0.12);
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.space-promo-link:hover {
+  transform: translateY(-2px);
+  border-color: rgba(160, 190, 255, 0.45);
+}
+
+.space-promo-link h2 {
+  margin: 0 0 6px;
+  font-size: 1.2rem;
+}
+
+.space-promo-link p {
+  margin: 0;
+  opacity: 0.78;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.space-promo-cta {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  color: var(--primary, #3a6ff0);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .space-promo-link {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {

@@ -101,10 +101,9 @@ import ToolLayout from '../../layouts/ToolLayout.astro';
     // exifr 7.x 只有 parse/gps，IPTC/XMP 通过 parse 选项读取
     const segments = await exifr.parse(buf, {
       tiff: true,
-      ifd0: true,
       exif: true,
       iptc: true,
-      xmp: { parse: true },
+      xmp: true,
       reviveValues: true,
       mergeOutput: false,
     }).catch(() => null);

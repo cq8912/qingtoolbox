@@ -5,7 +5,10 @@
     "desc": "笔顺动画 + 田字格跟写练习",
     "icon": "字",
     "category": "edu",
-    "tags": ["教育", "汉字"]
+    "tags": [
+      "教育",
+      "汉字"
+    ]
   },
   {
     "slug": "json-viewer",
@@ -13,7 +16,10 @@
     "desc": "格式化、校验、修复与压缩 JSON",
     "icon": "J",
     "category": "dev",
-    "tags": ["开发", "JSON"]
+    "tags": [
+      "开发",
+      "JSON"
+    ]
   },
   {
     "slug": "timestamp",
@@ -21,7 +27,10 @@
     "desc": "秒/毫秒时间戳与本地日期时间互转",
     "icon": "时",
     "category": "dev",
-    "tags": ["开发", "时间"]
+    "tags": [
+      "开发",
+      "时间"
+    ]
   },
   {
     "slug": "base64",
@@ -29,7 +38,10 @@
     "desc": "文本与 Base64 互转，支持 UTF-8",
     "icon": "64",
     "category": "dev",
-    "tags": ["编码", "开发"]
+    "tags": [
+      "编码",
+      "开发"
+    ]
   },
   {
     "slug": "url-encode",
@@ -37,7 +49,10 @@
     "desc": "URL 编码解码，支持组件与整段 URL",
     "icon": "%",
     "category": "dev",
-    "tags": ["编码", "开发"]
+    "tags": [
+      "编码",
+      "开发"
+    ]
   },
   {
     "slug": "md5",
@@ -45,7 +60,10 @@
     "desc": "在线计算字符串 MD5 哈希值",
     "icon": "#",
     "category": "dev",
-    "tags": ["加密", "哈希"]
+    "tags": [
+      "加密",
+      "哈希"
+    ]
   },
   {
     "slug": "sha",
@@ -53,7 +71,10 @@
     "desc": "计算文本或文件的 SHA 哈希值",
     "icon": "SHA",
     "category": "dev",
-    "tags": ["加密", "哈希"]
+    "tags": [
+      "加密",
+      "哈希"
+    ]
   },
   {
     "slug": "regex-tester",
@@ -61,7 +82,10 @@
     "desc": "在线测试 JavaScript 正则匹配与替换",
     "icon": ".*",
     "category": "dev",
-    "tags": ["开发", "正则"]
+    "tags": [
+      "开发",
+      "正则"
+    ]
   },
   {
     "slug": "word-count",
@@ -69,7 +93,10 @@
     "desc": "统计中文、英文、字符、行数与阅读时间",
     "icon": "文",
     "category": "text",
-    "tags": ["文本", "办公"]
+    "tags": [
+      "文本",
+      "办公"
+    ]
   },
   {
     "slug": "qrcode",
@@ -77,7 +104,10 @@
     "desc": "文本或链接生成二维码并下载 PNG",
     "icon": "QR",
     "category": "image",
-    "tags": ["图片", "二维码"]
+    "tags": [
+      "图片",
+      "二维码"
+    ]
   },
   {
     "slug": "image-merge",
@@ -85,7 +115,10 @@
     "desc": "多图拼接 + 箭头方框文字标注",
     "icon": "拼",
     "category": "image",
-    "tags": ["图片", "合并"]
+    "tags": [
+      "图片",
+      "合并"
+    ]
   },
   {
     "slug": "image-compress",
@@ -93,7 +126,10 @@
     "desc": "本地压缩，可调质量与尺寸",
     "icon": "压",
     "category": "image",
-    "tags": ["图片", "压缩"]
+    "tags": [
+      "图片",
+      "压缩"
+    ]
   },
   {
     "slug": "image-resize",
@@ -101,7 +137,10 @@
     "desc": "调整宽高、比例裁剪与本地导出",
     "icon": "裁",
     "category": "image",
-    "tags": ["图片", "尺寸"]
+    "tags": [
+      "图片",
+      "尺寸"
+    ]
   },
   {
     "slug": "image-convert",
@@ -109,7 +148,10 @@
     "desc": "WebP、JPG、PNG、ICO 本地互转",
     "icon": "转",
     "category": "image",
-    "tags": ["图片", "格式"]
+    "tags": [
+      "图片",
+      "格式"
+    ]
   },
   {
     "slug": "image-exif",
@@ -117,6 +159,10 @@
     "desc": "查看 EXIF、GPS、XMP 与 AI 元数据",
     "icon": "信",
     "category": "image",
-    "tags": ["图片", "隐私", "EXIF"]
+    "tags": [
+      "图片",
+      "隐私",
+      "EXIF"
+    ]
   }
 ]
