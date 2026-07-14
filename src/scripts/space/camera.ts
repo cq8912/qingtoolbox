@@ -1,20 +1,29 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { C_AU_PER_S, BODIES, type BodyId } from './constants';
+import { C_AU_PER_S, BODIES, satelliteEnvelope, type BodyId } from './constants';
 import type { BodySystem } from './bodies';
 import type { TravelTrail } from './minimap';
+import type { StarSystem, StarId } from './stars';
+import { STAR_BY_ID } from './stars';
+import { applyScaleVisibility, type ScaleMode } from './scale';
 
 export type CamMode = 'observe' | 'fly' | 'travel' | 'tour' | 'facesun';
+
+type TravelDomain = 'body' | 'star';
 
 export class CameraController {
   mode: CamMode = 'observe';
   speedMult = 1;
   focus: BodyId = 'earth';
+  starFocus: StarId = 'sol';
+  scaleMode: ScaleMode = 'solar';
   currentSpeedAu = 0;
   touring = false;
   travelTrail: TravelTrail | null = null;
   /** 跃迁目标（飞行过程中 focus 不变，避免逻辑错乱） */
   travelDestId: BodyId = 'earth';
+  travelDestStar: StarId = 'sirius';
+  private travelDomain: TravelDomain = 'body';
 
   private orbit: OrbitControls;
   private keys = new Set<string>();
@@ -37,6 +46,16 @@ export class CameraController {
   private travelSettlePos = new THREE.Vector3();
   private baseFov = 58;
   private matLook = new THREE.Matrix4();
+
+  /** 离场 / 入场跨尺度 */
+  private crossPhase: null | 'leave' | 'enter' = null;
+  private pendingStar: StarId | null = null;
+  private leaveFrom = new THREE.Vector3();
+  private leaveTo = new THREE.Vector3();
+  private leaveLook = new THREE.Vector3();
+  private leaveT = 0;
+  private leaveDur = 1.4;
+  private returningToSol = false;
 
   private tourIndex = 0;
   private tourSpin = 0;
@@ -63,12 +82,15 @@ export class CameraController {
     private camera: THREE.PerspectiveCamera,
     canvas: HTMLCanvasElement,
     private bodies: BodySystem,
+    private stars: StarSystem,
+    private onScaleChange?: (mode: ScaleMode) => void,
   ) {
     this.orbit = new OrbitControls(camera, canvas);
     this.orbit.enableDamping = true;
     this.orbit.dampingFactor = 0.08;
     this.orbit.rotateSpeed = 0.6;
-    this.orbit.zoomSpeed = 1.05;
+    this.orbit.zoomSpeed = 1.25;
+    this.orbit.enableZoom = true;
     this.orbit.panSpeed = 0.45;
     this.orbit.enablePan = true;
     this.orbit.screenSpacePanning = true;
@@ -142,13 +164,11 @@ export class CameraController {
     return out.copy(away).multiplyScalar(0.9).addScaledVector(side, 0.32).normalize();
   }
 
-  /** 按当前中心 + 固定距离/方向放置相机，注视中心 */
   private applyFaceSunPose(pivot: THREE.Vector3, dir: THREE.Vector3) {
     this.camera.position.copy(pivot).addScaledVector(dir, this.faceSunDist);
     this.camera.lookAt(pivot);
   }
 
-  /** 从当前四元数平滑转向「看向 target」，不改写 target（避免 tmp 复用踩踏） */
   private slerpLookAt(fromQ: THREE.Quaternion, pos: THREE.Vector3, target: THREE.Vector3, t: number) {
     if (t <= 0) {
       this.camera.quaternion.copy(fromQ);
@@ -168,27 +188,50 @@ export class CameraController {
     this.camera.updateProjectionMatrix();
   }
 
-  /** 跃迁弧线控制点：抬高并绕开太阳，避免路径穿过 (0,0,0) */
+  /** Floating Origin 重设后：场景点与相机同步平移 */
+  applyOriginShift(delta: THREE.Vector3) {
+    if (delta.lengthSq() < 1e-18) return;
+    this.camera.position.sub(delta);
+    this.orbit.target.sub(delta);
+    this.travelFrom.sub(delta);
+    this.travelMid.sub(delta);
+    this.travelPivotStart.sub(delta);
+    this.travelSettlePos.sub(delta);
+    this.leaveFrom.sub(delta);
+    this.leaveTo.sub(delta);
+    this.leaveLook.sub(delta);
+    if (this.travelTrail) {
+      this.travelTrail.from.sub(delta);
+      this.travelTrail.mid.sub(delta);
+      this.travelTrail.to.sub(delta);
+    }
+  }
+
+  private clearance(): number {
+    return this.scaleMode == 'stellar' ? 0.35 : 1.25;
+  }
+
+  /** 跃迁弧线控制点：抬高并绕开原点大质量体 */
   private buildTravelMid(from: THREE.Vector3, to: THREE.Vector3, out: THREE.Vector3) {
-    const SUN_CLR = 1.25;
+    const CLR = this.clearance();
     out.copy(from).lerp(to, 0.5);
     const chord = from.distanceTo(to);
-    const lift = Math.min(4.5, Math.max(0.2, chord * 0.38));
+    const lift = Math.min(this.scaleMode == 'stellar' ? 6 : 4.5, Math.max(0.2, chord * 0.38));
     out.y += lift;
 
     let r = out.length();
-    if (r < SUN_CLR) {
+    if (r < CLR) {
       if (r < 1e-5) {
-        out.set(0, SUN_CLR, 0);
+        out.set(0, CLR, 0);
       } else {
-        out.multiplyScalar(SUN_CLR / r);
+        out.multiplyScalar(CLR / r);
       }
     }
 
     const a = this.tmp.copy(from).normalize();
     const b = this.tmp2.copy(to).normalize();
     if (a.lengthSq() > 1e-6 && b.lengthSq() > 1e-6 && a.dot(b) < 0.25) {
-      const outer = Math.max(from.length(), to.length(), SUN_CLR) * 1.2;
+      const outer = Math.max(from.length(), to.length(), CLR) * 1.2;
       const midDir = a.add(b);
       if (midDir.lengthSq() < 1e-6) midDir.set(0, 1, 0);
       midDir.normalize();
@@ -202,7 +245,19 @@ export class CameraController {
     return out.copy(destPivot).addScaledVector(this.travelViewDir, this.travelViewDist);
   }
 
+  private destPivot(out: THREE.Vector3): THREE.Vector3 {
+    if (this.travelDomain == 'star') return this.stars.getWorldPos(this.travelDestStar, out);
+    return this.bodies.getWorldPos(this.travelDestId, out);
+  }
+
   getAdaptiveSpeedAu(): number {
+    if (this.scaleMode == 'stellar') {
+      const id = this.mode == 'travel' ? this.travelDestStar : this.starFocus;
+      const def = STAR_BY_ID[id];
+      const dist = this.camera.position.distanceTo(this.stars.getWorldPos(id, this.tmp));
+      const base = Math.max(dist * 0.55, (def?.visualRadius || 0.05) * 35, 0.02);
+      return base * this.speedMult;
+    }
     const def = this.bodies.getDef(this.focus);
     const dist = this.camera.position.distanceTo(this.bodies.getWorldPos(this.focus, this.tmp));
     const base = Math.max(dist * 0.55, def.visualRadius * 35, 0.015);
@@ -220,15 +275,28 @@ export class CameraController {
 
   setFocus(id: BodyId) {
     this.focus = id;
-    if (this.mode == 'observe') {
+    if (this.mode == 'observe' && this.scaleMode == 'solar') {
       this.bodies.getWorldPos(id, this.tmp);
       this.orbit.target.copy(this.tmp);
-      this.orbit.minDistance = Math.max(this.bodies.getDef(id).visualRadius * 1.6, 0.0005);
+      this.orbit.minDistance = Math.max(
+        this.bodies.getDef(id).visualRadius * (id == 'sun' ? 18 : 1.6),
+        id == 'sun' ? 0.7 : 0.0005,
+      );
+    }
+  }
+
+  setStarFocus(id: StarId) {
+    this.starFocus = id;
+    if (this.mode == 'observe' && this.scaleMode == 'stellar') {
+      this.stars.getWorldPos(id, this.tmp);
+      this.orbit.target.copy(this.tmp);
+      this.orbit.minDistance = Math.max(STAR_BY_ID[id].visualRadius * 8, 0.45);
     }
   }
 
   /** 绕当前轨道中心旋转，保持距离，直到背阳构图（始终看见中心天体） */
   faceSun() {
+    if (this.scaleMode != 'solar') return;
     this.stopTour();
     this.faceSunHold = false;
 
@@ -252,7 +320,7 @@ export class CameraController {
     const dot = Math.max(-1, Math.min(1, this.faceSunFromDir.dot(this.faceSunToDir)));
     const angle = Math.acos(dot);
     this.faceSunT = 0;
-    this.faceSunDur = Math.min(3.2, Math.max(0.9, angle / Math.PI * 2.8));
+    this.faceSunDur = Math.min(3.2, Math.max(0.9, (angle / Math.PI) * 2.8));
 
     this.mode = 'facesun';
     this.orbit.enabled = false;
@@ -265,11 +333,13 @@ export class CameraController {
   }
 
   toggleTour() {
+    if (this.scaleMode != 'solar') return;
     if (this.touring) this.stopTour();
     else this.startTour();
   }
 
   startTour() {
+    if (this.scaleMode != 'solar') return;
     this.touring = true;
     this.tourIndex = BODIES.findIndex((b) => b.id == this.focus);
     if (this.tourIndex < 0) this.tourIndex = 0;
@@ -302,9 +372,166 @@ export class CameraController {
     });
   }
 
+  /** 从太阳系跃迁到邻近恒星；已在星域则同尺度飞行 */
+  travelToStar(id: StarId, onDone?: () => void) {
+    if (id == 'sol') {
+      this.returnToSol(onDone);
+      return;
+    }
+    this.stopTour();
+    this.faceSunHold = false;
+    this.returningToSol = false;
+    this.travelDone = onDone || null;
+
+    if (this.scaleMode == 'solar') {
+      this.beginLeaveSolar(id);
+      return;
+    }
+    this.beginStarTravel(id);
+  }
+
+  /** 从星域返回太阳系（停靠地球） */
+  returnToSol(onDone?: () => void) {
+    this.stopTour();
+    this.faceSunHold = false;
+    this.travelDone = onDone || null;
+    if (this.scaleMode == 'solar') {
+      this.travelTo('earth', onDone);
+      return;
+    }
+    this.returningToSol = true;
+    this.beginStarTravel('sol');
+  }
+
+  private beginLeaveSolar(starId: StarId) {
+    this.pendingStar = starId;
+    this.crossPhase = 'leave';
+    this.mode = 'travel';
+    this.orbit.enabled = false;
+    this.travelDomain = 'body';
+    this.travelDestStar = starId;
+
+    this.leaveFrom.copy(this.camera.position);
+    this.leaveLook.copy(this.orbit.target);
+    // 沿目标恒星方向拉远离场（AU 尺度）
+    this.stars.getLogicalPos(starId, this.tmp);
+    if (this.tmp.lengthSq() < 1e-8) this.tmp.set(1, 0.2, 0);
+    this.tmp.normalize();
+    const pull = 55;
+    this.leaveTo.copy(this.tmp).multiplyScalar(pull);
+    this.leaveT = 0;
+    this.leaveDur = 1.55;
+    this.travelTrail = null;
+  }
+
+  private finishLeaveSolar() {
+    const starId = this.pendingStar!;
+    this.pendingStar = null;
+    this.crossPhase = null;
+
+    applyScaleVisibility('stellar', this.bodies, this.stars);
+    this.scaleMode = 'stellar';
+    this.onScaleChange?.('stellar');
+
+    // 星域：相机放在太阳附近朝向目标
+    this.stars.getLogicalPos(starId, this.tmp);
+    const dir = this.tmp2.copy(this.tmp);
+    if (dir.lengthSq() < 1e-8) dir.set(1, 0.15, 0);
+    dir.normalize();
+
+    this.stars.setFloatingOrigin(this.tmp3.set(0, 0, 0));
+    const startDist = 1.1;
+    this.camera.position.copy(dir).multiplyScalar(startDist);
+    this.orbit.target.set(0, 0, 0);
+    this.camera.lookAt(this.stars.getWorldPos(starId, this.tmp));
+    this.starFocus = 'sol';
+
+    this.beginStarTravel(starId);
+  }
+
+  private beginEnterSolar() {
+    this.crossPhase = null;
+    this.returningToSol = false;
+
+    applyScaleVisibility('solar', this.bodies, this.stars);
+    this.scaleMode = 'solar';
+    this.onScaleChange?.('solar');
+
+    this.bodies.getLogicalPos('earth', this.tmp);
+    this.bodies.setFloatingOrigin(this.tmp);
+    this.stars.setFloatingOrigin(this.tmp3.set(0, 0, 0));
+
+    this.focus = 'earth';
+    this.starFocus = 'sol';
+    const target = this.bodies.getWorldPos('earth', this.tmp);
+    const dist = Math.max(this.bodies.getDef('earth').visualRadius * 12, 0.035);
+    this.orbit.target.copy(target);
+    this.camera.position.set(target.x + dist * 0.65, target.y + dist * 0.35, target.z + dist);
+    this.orbit.minDistance = Math.max(this.bodies.getDef('earth').visualRadius * 1.6, 0.0005);
+    this.orbit.maxDistance = 120;
+    this.mode = 'observe';
+    this.orbit.enabled = true;
+    this.orbit.update();
+    this.resetFov();
+    this.travelTrail = null;
+
+    const done = this.travelDone;
+    this.travelDone = null;
+    done?.();
+  }
+
+  private beginStarTravel(id: StarId) {
+    this.travelDomain = 'star';
+    this.travelDestStar = id;
+    this.mode = 'travel';
+    this.orbit.enabled = false;
+    this.faceSunHold = false;
+
+    this.travelFrom.copy(this.camera.position);
+    this.travelPivotStart.copy(this.orbit.target);
+    this.travelFromQuat.copy(this.camera.quaternion);
+
+    const off = this.tmp.copy(this.camera.position).sub(this.travelPivotStart);
+    this.travelViewDist = off.length();
+    if (this.travelViewDist < 1e-6) {
+      this.travelViewDir.set(0.65, 0.35, 1).normalize();
+      this.travelViewDist = 0.35;
+    } else {
+      this.travelViewDir.copy(off).normalize();
+    }
+
+    const def = STAR_BY_ID[id];
+    const maxView = Math.max(def.visualRadius * 22, 1.15);
+    const minView = Math.max(def.visualRadius * 14, 0.75);
+    if (this.travelViewDist > maxView * 2.2) this.travelViewDist = maxView * 2.2;
+    if (this.travelViewDist < minView) this.travelViewDist = minView;
+
+    const dest = this.stars.getWorldPos(id, this.tmp);
+    const endPos = this.travelEndPos(dest, this.tmp2);
+    this.buildTravelMid(this.travelFrom, endPos, this.travelMid);
+
+    this.travelT = 0;
+    const dist = this.travelFrom.distanceTo(endPos);
+    this.travelDur = Math.min(7.5, Math.max(2.0, Math.log10(dist + 1) * 2.2 + dist * 0.12));
+    this.travelPhase = 'hold';
+    this.travelHold = 0.35;
+
+    this.travelTrail = {
+      from: this.travelFrom.clone(),
+      mid: this.travelMid.clone(),
+      to: endPos.clone(),
+      progress: 0,
+    };
+  }
+
   /** 从当前位置/视角/相对偏移，弧线飞往目标天体 */
   travelTo(id: BodyId, onDone?: () => void) {
+    if (this.scaleMode != 'solar') {
+      // 星域下点行星无效，忽略
+      return;
+    }
     this.faceSunHold = false;
+    this.travelDomain = 'body';
     this.travelDestId = id;
     this.mode = 'travel';
     this.orbit.enabled = false;
@@ -322,8 +549,22 @@ export class CameraController {
       this.travelViewDir.copy(off).normalize();
     }
     const destDef = this.bodies.getDef(id);
-    const maxView = Math.max(destDef.visualRadius * 14, 0.04);
+    let maxView = Math.max(destDef.visualRadius * 14, 0.04);
+    let minView = 0;
+    if (id == 'sun') {
+      maxView = Math.max(destDef.visualRadius * 32, 1.4);
+      minView = Math.max(destDef.visualRadius * 22, 0.95);
+    } else if (destDef.parent) {
+      maxView = Math.max(maxView, satelliteEnvelope(destDef.parent) * 0.4);
+    } else {
+      maxView = Math.max(maxView, satelliteEnvelope(id) * 0.65);
+    }
     if (this.travelViewDist > maxView * 2.5) this.travelViewDist = maxView * 2.5;
+    if (minView > 0 && this.travelViewDist < minView) this.travelViewDist = minView;
+    if (!destDef.parent && id != 'sun') {
+      const env = satelliteEnvelope(id);
+      if (this.travelViewDist < env * 0.55) this.travelViewDist = env * 0.55;
+    }
 
     const dest = this.bodies.getWorldPos(id, this.tmp);
     const endPos = this.travelEndPos(dest, this.tmp2);
@@ -345,10 +586,19 @@ export class CameraController {
   }
 
   private syncOrbitFromCamera() {
+    if (this.scaleMode == 'stellar') {
+      const def = STAR_BY_ID[this.starFocus];
+      this.stars.getWorldPos(this.starFocus, this.tmp);
+      this.orbit.target.copy(this.tmp);
+      this.orbit.minDistance = Math.max(def.visualRadius * 8, 0.45);
+      this.orbit.maxDistance = 120;
+      this.orbit.update();
+      return;
+    }
     const def = this.bodies.getDef(this.focus);
     this.bodies.getWorldPos(this.focus, this.tmp);
     this.orbit.target.copy(this.tmp);
-    this.orbit.minDistance = Math.max(def.visualRadius * 1.6, 0.0005);
+    this.orbit.minDistance = Math.max(def.visualRadius * (def.id == 'sun' ? 18 : 1.6), def.id == 'sun' ? 0.7 : 0.0005);
     this.orbit.maxDistance = 120;
     this.orbit.update();
   }
@@ -366,6 +616,21 @@ export class CameraController {
     this.travelPhase = 'move';
     this.resetFov();
 
+    if (this.travelDomain == 'star') {
+      if (this.returningToSol && this.travelDestStar == 'sol') {
+        this.beginEnterSolar();
+        return;
+      }
+      this.starFocus = this.travelDestStar;
+      this.mode = 'observe';
+      this.orbit.enabled = true;
+      this.stars.getWorldPos(this.travelDestStar, this.tmp);
+      this.orbit.target.copy(this.tmp);
+      this.orbit.minDistance = Math.max(STAR_BY_ID[this.travelDestStar].visualRadius * 8, 0.45);
+      done?.();
+      return;
+    }
+
     if (this.touring && this.tourPhase == 'goto') {
       done?.();
       return;
@@ -376,13 +641,28 @@ export class CameraController {
       this.orbit.enabled = true;
       this.bodies.getWorldPos(this.travelDestId, this.tmp);
       this.orbit.target.copy(this.tmp);
-      this.orbit.minDistance = Math.max(this.bodies.getDef(this.travelDestId).visualRadius * 1.6, 0.0005);
+      this.orbit.minDistance = Math.max(
+        this.bodies.getDef(this.travelDestId).visualRadius * (this.travelDestId == 'sun' ? 18 : 1.6),
+        this.travelDestId == 'sun' ? 0.7 : 0.0005,
+      );
     }
     done?.();
   }
 
   update(dt: number) {
     this.currentSpeedAu = this.getAdaptiveSpeedAu();
+
+    // 离场：太阳系拉远后切入星域
+    if (this.crossPhase == 'leave') {
+      this.leaveT += dt / this.leaveDur;
+      const t = easeInOutCubic(Math.min(1, this.leaveT));
+      this.camera.position.lerpVectors(this.leaveFrom, this.leaveTo, t);
+      this.camera.lookAt(this.leaveLook);
+      this.camera.fov = this.baseFov + Math.sin(t * Math.PI) * 6;
+      this.camera.updateProjectionMatrix();
+      if (this.leaveT >= 1) this.finishLeaveSolar();
+      return;
+    }
 
     if (this.mode == 'facesun') {
       this.faceSunT += dt / this.faceSunDur;
@@ -403,7 +683,7 @@ export class CameraController {
     }
 
     if (this.mode == 'travel') {
-      const destPivot = this.bodies.getWorldPos(this.travelDestId, this.tmp);
+      const destPivot = this.destPivot(this.tmp);
       const endPos = this.travelEndPos(destPivot, this.tmp2);
 
       if (this.travelPhase == 'hold') {
@@ -420,7 +700,6 @@ export class CameraController {
         const st = 1 - Math.max(0, this.travelSettle) / 1.0;
         const ease = easeOutCubic(st);
         this.camera.position.lerpVectors(this.travelSettlePos, endPos, ease);
-        // 到达段：直接看向目标星球，不再从出发四元数插值（避免末尾突然拧头）
         this.camera.lookAt(destPivot);
         this.camera.fov = this.baseFov + (1 - ease) * 2;
         this.camera.updateProjectionMatrix();
@@ -433,7 +712,6 @@ export class CameraController {
       const pos = quadBezier(this.travelFrom, this.travelMid, endPos, t);
       this.camera.position.copy(pos);
 
-      // 注视：始终朝「目标星球」插值朝向，绝不把 look 点在地球↔目标间插值（会扫过太阳）
       const lookT = smoothstep(0.08, 0.82, t);
       this.slerpLookAt(this.travelFromQuat, pos, destPivot, lookT);
 
@@ -473,10 +751,19 @@ export class CameraController {
     }
 
     if (this.mode == 'observe') {
-      if (this.faceSunHold) {
+      if (this.faceSunHold && this.scaleMode == 'solar') {
         const pivot = this.faceSunPivot(this.tmp);
         this.applyFaceSunPose(pivot, this.faceSunToDir);
         this.orbit.target.copy(pivot);
+        return;
+      }
+
+      if (this.scaleMode == 'stellar') {
+        this.stars.getWorldPos(this.starFocus, this.tmp);
+        this.tmp2.copy(this.camera.position).sub(this.orbit.target);
+        this.orbit.target.copy(this.tmp);
+        this.camera.position.copy(this.tmp).add(this.tmp2);
+        this.orbit.update();
         return;
       }
 
@@ -554,7 +841,6 @@ function easeInOutCubic(t: number) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
-/** 跃迁主段：慢起 → 快中 → 慢停（比 cubic 更戏剧） */
 function easeCinematic(t: number) {
   return t < 0.5 ? 16 * t * t * t * t * t : 1 - Math.pow(-2 * t + 2, 5) / 2;
 }
@@ -570,7 +856,17 @@ function smoothstep(e0: number, e1: number, x: number) {
 
 const UP = new THREE.Vector3(0, 1, 0);
 
-export function formatSpeed(auPerS: number): string {
+/** 光速：ly / 秒 */
+const C_LY_PER_S = 1 / (365.25 * 86400);
+
+export function formatSpeed(auPerS: number, stellar = false): string {
+  if (stellar) {
+    const lyPerS = auPerS; // 星域场景单位即 ly
+    const c = lyPerS / C_LY_PER_S;
+    if (lyPerS >= 0.1) return `${lyPerS.toFixed(2)} ly/s · ${c.toFixed(0)}c`;
+    if (c >= 1) return `${(lyPerS * 1e3).toFixed(2)} mly/s · ${c.toFixed(1)}c`;
+    return `${(lyPerS * 1e6).toFixed(1)} μly/s · ${c.toFixed(2)}c`;
+  }
   const c = auPerS / C_AU_PER_S;
   if (c >= 100) return `${auPerS.toFixed(2)} AU/s · ${c.toFixed(0)}c`;
   if (c >= 1) return `${auPerS.toFixed(3)} AU/s · ${c.toFixed(1)}c`;

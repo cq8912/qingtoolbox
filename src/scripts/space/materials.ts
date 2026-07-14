@@ -58,8 +58,7 @@ export function createSunGroup(radius: number, map: THREE.Texture): {
         float limb = pow(ndv, 0.4);
         col *= 0.65 + 0.55 * limb;
         col += hot * pow(1.0 - limb, 2.0) * 0.85;
-        // 超亮驱动 Bloom（>1）
-        col *= 2.4;
+        col *= 1.55;
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -71,7 +70,7 @@ export function createSunGroup(radius: number, map: THREE.Texture): {
   // 多层加法日冕（亮度抬高，交给 Bloom）
   const coronaColors = [0xffc266, 0xff8c2a, 0xffe0a8];
   const coronaScales = [1.22, 1.55, 2.05];
-  const coronaOpacity = [0.32, 0.16, 0.07];
+  const coronaOpacity = [0.22, 0.1, 0.045];
   for (let i = 0; i < 3; i++) {
     const c = new THREE.Mesh(
       new THREE.SphereGeometry(radius * coronaScales[i], 48, 32),
@@ -93,6 +92,130 @@ export function createSunGroup(radius: number, map: THREE.Texture): {
     update(t: number) {
       uniforms.uTime.value = t;
       core.rotation.y = t * 0.02;
+    },
+  };
+}
+
+/** 软光晕精灵（径向渐变，避免低模多边形边） */
+function makeGlowSprite(color: number, strength: number): THREE.Sprite {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const r = (color >> 16) & 255;
+  const g = (color >> 8) & 255;
+  const b = color & 255;
+  const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, `rgba(${r},${g},${b},${0.85 * strength})`);
+  grad.addColorStop(0.25, `rgba(${r},${g},${b},${0.35 * strength})`);
+  grad.addColorStop(0.55, `rgba(${r},${g},${b},${0.08 * strength})`);
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  return new THREE.Sprite(mat);
+}
+
+/**
+ * 邻近恒星：复用太阳表面贴图 + 光谱染色（行业里几乎没有单星 2K 球面贴图）
+ */
+export function createTintedStarGroup(
+  radius: number,
+  map: THREE.Texture,
+  tintHex: number,
+  glow = 1,
+): {
+  group: THREE.Group;
+  update: (t: number) => void;
+} {
+  const group = new THREE.Group();
+  const tint = new THREE.Color(tintHex);
+  const uniforms = {
+    uMap: { value: map },
+    uTime: { value: 0 },
+    uTint: { value: tint },
+    uHot: { value: tint.clone().multiplyScalar(1.35) },
+  };
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms,
+    toneMapped: false,
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vView = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D uMap;
+      uniform float uTime;
+      uniform vec3 uTint;
+      uniform vec3 uHot;
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      varying vec3 vView;
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+      }
+
+      void main() {
+        vec3 base = texture2D(uMap, vUv).rgb;
+        float lum = dot(base, vec3(0.299, 0.587, 0.114));
+        float n = noise(vUv * 40.0 + uTime * 0.1);
+        n += 0.45 * noise(vUv * 80.0 - uTime * 0.14);
+        vec3 col = mix(uTint * (0.35 + lum), uHot * (0.5 + lum), 0.35 + 0.4 * n);
+        float ndv = max(dot(normalize(vNormal), normalize(vView)), 0.0);
+        float limb = pow(ndv, 0.45);
+        col *= 0.7 + 0.5 * limb;
+        col += uHot * pow(1.0 - limb, 2.2) * 0.7;
+        col *= 1.45;
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+  });
+
+  const core = new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 48), mat);
+  group.add(core);
+
+  const sprite = makeGlowSprite(tintHex, 0.35 + glow * 0.22);
+  sprite.scale.setScalar(radius * (5 + glow * 2.2));
+  group.add(sprite);
+
+  const sprite2 = makeGlowSprite(tintHex, 0.14 + glow * 0.12);
+  sprite2.scale.setScalar(radius * (8 + glow * 3));
+  group.add(sprite2);
+
+  return {
+    group,
+    update(t: number) {
+      uniforms.uTime.value = t;
+      core.rotation.y = t * 0.015;
     },
   };
 }

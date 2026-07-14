@@ -36,10 +36,10 @@ export function createScene(canvas: HTMLCanvasElement, tex: SpaceTextures): Spac
   camera.position.set(0, 0.6, 2.8);
 
   // 提亮环境，行星背面也能看清一点细节
-  scene.add(new THREE.AmbientLight(0x2a3348, 0.55));
-  scene.add(new THREE.HemisphereLight(0x9eb7ff, 0x1a1208, 0.35));
+  scene.add(new THREE.AmbientLight(0x2a3348, 0.42));
+  scene.add(new THREE.HemisphereLight(0x9eb7ff, 0x1a1208, 0.28));
 
-  const sunLight = new THREE.PointLight(0xfff3dd, 6.5, 0, 0);
+  const sunLight = new THREE.PointLight(0xfff3dd, 3.6, 0, 0);
   sunLight.position.set(0, 0, 0);
   scene.add(sunLight);
 
@@ -57,7 +57,7 @@ export function createScene(canvas: HTMLCanvasElement, tex: SpaceTextures): Spac
   // 后处理：太阳辉光（threshold 高，只亮部 bloom）
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.85, 0.5, 0.92);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.55, 0.45, 0.94);
   composer.addPass(bloom);
   const output = new OutputPass();
   composer.addPass(output);

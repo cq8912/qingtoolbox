@@ -1,6 +1,7 @@
 ---
 import { BODIES } from '../../scripts/space/constants';
 import { SPEED_PRESETS, TIME_PRESETS } from '../../scripts/space/constants';
+import { DEST_STARS } from '../../scripts/space/starCatalog';
 
 const TEX: Record<string, string> = {
   sun: '/space/textures/2k_sun.jpg',
@@ -14,13 +15,20 @@ const TEX: Record<string, string> = {
   uranus: '/space/textures/2k_uranus.jpg',
   neptune: '/space/textures/2k_neptune.jpg',
 };
+
+function hexColor(n: number) {
+  return '#' + n.toString(16).padStart(6, '0');
+}
+
+const PRIMARY = BODIES.filter((b) => !b.moonOf);
+const moonsOf = (id: string) => BODIES.filter((b) => b.moonOf == id);
 ---
 
 <!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="description" content="三维太阳系模拟星图" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -47,6 +55,7 @@ const TEX: Record<string, string> = {
         margin: 0; height: 100%; overflow: hidden;
         background: var(--void); color: var(--text);
         font-family: var(--font-d);
+        overscroll-behavior: none;
       }
 
       /* 扫描线叠层 */
@@ -68,6 +77,7 @@ const TEX: Record<string, string> = {
         position: fixed; inset: 0; z-index: 1;
         width: 100%; height: 100%; display: block;
         touch-action: none; cursor: crosshair;
+        overscroll-behavior: none;
       }
       #space-canvas:active { cursor: grabbing; }
 
@@ -81,7 +91,9 @@ const TEX: Record<string, string> = {
       #space-hud input,
       #space-hud label,
       #space-hud .sp-drawer,
-      #space-hud .sp-minimap-wrap {
+      #space-hud .sp-minimap-wrap,
+      #space-hud .sp-moon-chip,
+      #space-hud .sp-star-pick {
         pointer-events: auto;
         cursor: pointer;
       }
@@ -134,6 +146,27 @@ const TEX: Record<string, string> = {
         box-shadow: 0 0 24px rgba(0, 232, 255, 0.06), inset 0 1px 0 rgba(255,255,255,0.04);
       }
 
+      /* 底部外壳不画框，避免与内容区叠线 */
+      .sp-drawer-bottom.sp-zone {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+      .sp-drawer-bottom .sp-drawer-body.sp-dock {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-top: none;
+        border-radius: 0;
+        backdrop-filter: blur(16px) saturate(1.4);
+        box-shadow: 0 0 24px rgba(0, 232, 255, 0.06);
+      }
+      .sp-drawer-bottom .sp-drawer-tab {
+        border: 1px solid var(--line);
+        border-bottom: none;
+        background: var(--panel);
+      }
+
       /* 顶栏 HUD */
       .sp-top {
         position: absolute;
@@ -175,18 +208,17 @@ const TEX: Record<string, string> = {
         box-shadow: 0 0 16px rgba(0, 232, 255, 0.2);
       }
 
-      /* 左侧吸边抽屉：天体选择 */
+      /* 左侧抽屉：默认展开，点标签折叠 */
       .sp-drawer-left {
         position: absolute;
         left: 0; top: 50%;
-        transform: translateY(-50%) translateX(calc(-100% + var(--drawer-tab)));
+        transform: translateY(-50%) translateX(0);
         transition: transform 0.4s var(--ease);
         display: flex; align-items: stretch;
         z-index: 12;
       }
-      .sp-drawer-left:hover,
-      .sp-drawer-left:focus-within {
-        transform: translateY(-50%) translateX(0);
+      .sp-drawer-left.is-collapsed {
+        transform: translateY(-50%) translateX(calc(-100% + var(--drawer-tab)));
       }
       .sp-drawer-tab {
         width: var(--drawer-tab);
@@ -200,53 +232,260 @@ const TEX: Record<string, string> = {
         border: 1px solid var(--line);
         border-left: none;
         text-shadow: 0 0 8px var(--cyan-glow);
+        cursor: pointer;
+        user-select: none;
+        padding: 0;
+        margin: 0;
+        appearance: none;
+        -webkit-appearance: none;
+      }
+      .sp-drawer-left.sp-zone {
+        overflow: hidden; /* 选中框不得撑破外框 */
+      }
+      .sp-drawer-left .sp-drawer-body {
+        padding: 8px;
+        width: 148px;
+        min-width: 0;
+        box-sizing: border-box;
+        overflow: hidden;
       }
       .sp-drawer-body {
         padding: 8px;
         min-width: 0;
       }
       .sp-rail {
-        display: grid; grid-template-columns: repeat(2, 1fr);
-        gap: 5px; width: 148px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        width: 100%;
         border: none; background: transparent;
         box-shadow: none;
+        max-height: none;
+        overflow: hidden;
       }
+      .sp-rail-split {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 100%;
+        min-width: 0;
+        max-height: none;
+        overflow: hidden;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      .sp-rail-modes {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+      }
+      .sp-rail-modes button {
+        border: 1px solid var(--line);
+        background: rgba(0, 232, 255, 0.04);
+        color: var(--text);
+        font: inherit;
+        font-size: 0.62rem;
+        letter-spacing: 0.08em;
+        padding: 5px 4px;
+        font-family: var(--font-m);
+        min-width: 0;
+      }
+      .sp-rail-modes button.is-on {
+        color: var(--cyan);
+        border-color: var(--cyan-glow);
+        background: rgba(0, 232, 255, 0.12);
+      }
+      #sp-rail-stars {
+        display: none;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        max-height: 62vh;
+        overflow-x: hidden;
+        overflow-y: auto;
+        width: 100%;
+      }
+      /* 左侧切换：天体 / 星域（与跨尺度无关，点星才跃迁） */
+      #space-hud[data-rail='stars'] #sp-rail { display: none; }
+      #space-hud[data-rail='stars'] #sp-rail-stars { display: grid; }
+      #space-hud[data-rail='bodies'] #sp-rail { display: grid; }
+      #space-hud[data-rail='bodies'] #sp-rail-stars { display: none; }
       .sp-pick {
-        display: flex; flex-direction: column; align-items: center; gap: 3px;
-        border: 1px solid transparent; background: transparent;
-        padding: 4px 2px; color: inherit; font: inherit;
-        border-radius: 4px;
-        transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+        display: flex; flex-direction: column; align-items: center; gap: 2px;
+        border: 0; background: transparent;
+        padding: 2px; color: inherit; font: inherit;
+        border-radius: 0;
+        width: 100%;
+        min-width: 0;
+        box-shadow: none;
       }
-      .sp-pick:hover, .sp-pick.is-on {
-        border-color: var(--cyan-dim);
-        background: rgba(0, 232, 255, 0.06);
-        box-shadow: 0 0 10px rgba(0, 232, 255, 0.12);
-      }
-      .sp-pick.is-on .sp-thumb {
-        box-shadow: 0 0 0 2px var(--cyan), 0 0 14px var(--cyan-glow);
+      .sp-pick:hover .sp-thumb,
+      .sp-pick:hover .sp-thumb-swatch,
+      .sp-pick.is-on .sp-thumb,
+      .sp-pick.is-on .sp-thumb-swatch {
+        box-shadow: 0 0 0 1px var(--cyan), inset -2px -2px 6px rgba(0,0,0,0.55);
       }
       .sp-thumb {
-        width: 42px; height: 42px; border-radius: 50%;
+        width: 30px; height: 30px; border-radius: 50%;
         object-fit: cover;
-        box-shadow: inset -3px -3px 8px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,232,255,0.15);
+        box-shadow: inset -2px -2px 6px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,232,255,0.15);
+        display: block;
+        flex-shrink: 0;
+      }
+      .sp-thumb-swatch {
+        width: 30px; height: 30px; border-radius: 50%;
+        box-shadow: inset -2px -2px 6px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,232,255,0.2);
+        display: block;
+        flex-shrink: 0;
+      }
+      .sp-pick span.sp-name {
+        font-size: 0.55rem; letter-spacing: 0.04em; font-family: var(--font-m);
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* 主星+卫星同一框；选中框不得超出格子 */
+      .sp-cell {
+        display: flex; flex-direction: column; align-items: center; gap: 2px;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+        padding: 3px 2px 4px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        overflow: hidden;
+        background: transparent;
+        transition: border-color 0.2s, background 0.2s;
+      }
+      .sp-cell.is-hot {
+        border-color: var(--cyan-dim);
+        background: rgba(0, 232, 255, 0.06);
+      }
+      .sp-moon-pack {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+        gap: 2px;
+        max-width: 100%;
+        padding: 0;
+        border: none;
+        background: transparent;
+      }
+      .sp-cell.is-hot .sp-moon-pack { filter: brightness(1.15); }
+      .sp-rail-label {
+        display: none;
+      }
+      .sp-star-pick {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        border: 1px solid transparent;
+        background: transparent;
+        padding: 4px 2px;
+        color: inherit;
+        font: inherit;
+        font-size: 0.58rem;
+        border-radius: 4px;
+        width: 100%;
+      }
+      .sp-star-pick:hover, .sp-star-pick.is-on {
+        border-color: rgba(255, 200, 87, 0.45);
+        background: rgba(255, 200, 87, 0.06);
+      }
+      .sp-star-dot {
+        width: 12px; height: 12px;
+        border-radius: 50%;
+        box-shadow: 0 0 8px currentColor;
         display: block;
       }
-      .sp-pick span { font-size: 0.58rem; letter-spacing: 0.06em; font-family: var(--font-m); }
+      .sp-star-pick.is-on .sp-star-dot {
+        outline: 1px solid var(--cyan);
+        outline-offset: 2px;
+      }
+      .sp-moon-chip {
+        width: 14px; height: 14px; padding: 0; border: 1px solid transparent;
+        border-radius: 50%; background: transparent;
+        display: inline-flex; align-items: center; justify-content: center;
+        cursor: pointer;
+        transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+      }
+      .sp-moon-chip:hover, .sp-moon-chip.is-on {
+        border-color: var(--cyan-dim);
+        box-shadow: 0 0 8px rgba(0, 232, 255, 0.25);
+        transform: scale(1.15);
+      }
+      .sp-moon-dot {
+        width: 9px; height: 9px; border-radius: 50%;
+        box-shadow: inset -1px -1px 3px rgba(0,0,0,0.55);
+        display: block;
+      }
+      .sp-moon-chip.is-on .sp-moon-dot {
+        box-shadow: 0 0 0 1px var(--cyan), inset -1px -1px 3px rgba(0,0,0,0.45);
+      }
 
-      /* 底部吸边抽屉 */
+      /* 场景旁名称（fixed，由 labels.ts 写 left/top） */
+      #sp-labels {
+        position: fixed; inset: 0;
+        pointer-events: none; z-index: 9;
+      }
+      .sp-label {
+        position: fixed;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1px;
+        font-family: var(--font-m);
+        letter-spacing: 0.14em;
+        color: rgba(180, 230, 255, 0.42);
+        text-shadow: 0 1px 6px rgba(0,0,0,0.75);
+        transform: translate(-50%, -120%);
+        white-space: nowrap;
+        transition: color 0.25s, opacity 0.25s;
+        opacity: 0.75;
+        pointer-events: auto;
+        cursor: pointer;
+        padding: 2px 4px;
+      }
+      .sp-label:hover {
+        color: rgba(0, 232, 255, 0.9);
+        opacity: 1;
+      }
+      .sp-label-name {
+        font-size: 0.62rem;
+      }
+      .sp-label-dist {
+        font-size: 0.5rem;
+        letter-spacing: 0.08em;
+        opacity: 0.75;
+      }
+      .sp-label.is-focus {
+        color: rgba(0, 232, 255, 0.88);
+        opacity: 0.98;
+      }
+      .sp-label.is-focus .sp-label-name {
+        letter-spacing: 0.2em;
+      }
+      .sp-label.is-dim {
+        opacity: 0.55;
+      }
+      .sp-label.is-dim .sp-label-name {
+        font-size: 0.55rem;
+        letter-spacing: 0.1em;
+      }
+
+      /* 底部抽屉：默认展开，点标签折叠 */
       .sp-drawer-bottom {
         position: absolute;
         left: 50%; bottom: 0;
-        transform: translateX(-50%) translateY(calc(100% - var(--drawer-tab)));
+        transform: translateX(-50%) translateY(0);
         transition: transform 0.4s var(--ease);
         display: flex; flex-direction: column; align-items: center;
         z-index: 12;
         max-width: calc(100vw - 24px);
       }
-      .sp-drawer-bottom:hover,
-      .sp-drawer-bottom:focus-within {
-        transform: translateX(-50%) translateY(0);
+      .sp-drawer-bottom.is-collapsed {
+        transform: translateX(-50%) translateY(calc(100% - var(--drawer-tab)));
       }
       .sp-drawer-bottom .sp-drawer-tab {
         writing-mode: horizontal-tb;
@@ -255,6 +494,34 @@ const TEX: Record<string, string> = {
         border-bottom: none;
         border-top: 1px solid var(--line);
         letter-spacing: 0.14em;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      /* 太阳系下顶栏弹出的邻近恒星面板 */
+      .sp-star-panel {
+        display: none;
+        position: absolute;
+        top: 52px; left: 50%;
+        transform: translateX(-50%);
+        z-index: 14;
+        width: min(420px, calc(100vw - 24px));
+        max-height: 50vh;
+        overflow-y: auto;
+        padding: 10px 12px;
+      }
+      .sp-star-panel.is-open { display: block; }
+      .sp-star-panel-title {
+        font-family: var(--font-m);
+        font-size: 0.62rem;
+        letter-spacing: 0.14em;
+        color: var(--amber);
+        margin-bottom: 8px;
+      }
+      .sp-star-panel-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
       }
       .sp-dock {
         display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
@@ -323,12 +590,13 @@ const TEX: Record<string, string> = {
 
       @media (max-width: 760px) {
         .sp-meta { display: none; }
-        .sp-rail { width: 52px; grid-template-columns: 1fr; max-height: 50vh; overflow-y: auto; }
+        .sp-rail { width: 100%; grid-template-columns: 1fr; max-height: 50vh; overflow-y: auto; }
+        .sp-drawer-left .sp-drawer-body { width: 72px; }
         .sp-pick span { display: none; }
-        .sp-thumb { width: 36px; height: 36px; }
-        .sp-drawer-bottom { left: 8px; right: 8px; transform: translateX(0) translateY(calc(100% - var(--drawer-tab))); }
-        .sp-drawer-bottom:hover,
-        .sp-drawer-bottom:focus-within { transform: translateX(0) translateY(0); }
+        .sp-thumb, .sp-thumb-swatch { width: 28px; height: 28px; }
+        .sp-drawer-bottom { left: 8px; right: 8px; transform: translateX(0) translateY(0); }
+        .sp-drawer-bottom.is-collapsed { transform: translateX(0) translateY(calc(100% - var(--drawer-tab))); }
+        .sp-star-panel-grid { grid-template-columns: repeat(2, 1fr); }
         .sp-minimap-wrap { width: 120px; top: 48px; right: 6px; }
         #sp-minimap { height: 110px; }
         .sp-readout { left: 34px; bottom: 36px; max-width: 55vw; }
@@ -339,12 +607,13 @@ const TEX: Record<string, string> = {
   <body>
     <canvas id="space-canvas"></canvas>
 
-    <div id="space-hud">
+    <div id="space-hud" data-scale="solar" data-rail="bodies">
       <header class="sp-zone sp-top sp-corners">
         <strong class="sp-title sp-muted">轻星图</strong>
         <div class="sp-meta sp-muted" id="sp-meta">SYS ONLINE</div>
         <div class="sp-top-btns">
           <button type="button" class="sp-btn sp-muted" id="sp-tour">自动游览</button>
+          <button type="button" class="sp-btn sp-muted" id="sp-return-sol" style="display:none">返回太阳系</button>
           <a class="sp-btn sp-muted" href="/">返回</a>
         </div>
       </header>
@@ -355,22 +624,64 @@ const TEX: Record<string, string> = {
         <canvas id="sp-minimap" width="168" height="148"></canvas>
       </div>
 
-      <!-- 左侧吸边：天体 -->
-      <aside class="sp-drawer sp-drawer-left sp-zone sp-corners" tabindex="-1">
-        <div class="sp-drawer-tab sp-muted">天体</div>
-        <nav class="sp-drawer-body sp-rail" id="sp-rail" aria-label="天体">
-          {BODIES.map((b) => (
-            <button type="button" class="sp-pick" data-goto={b.id} data-id={b.id}>
-              <img class="sp-thumb" src={TEX[b.id]} alt={b.name} width="42" height="42" loading="eager" />
-              <span class="sp-muted">{b.name}</span>
-            </button>
-          ))}
-        </nav>
+      <!-- 左侧：天体 / 星域（默认展开，点侧签折叠） -->
+      <aside class="sp-drawer sp-drawer-left sp-zone sp-corners" id="sp-drawer-left" tabindex="-1">
+        <button type="button" class="sp-drawer-tab sp-muted" id="sp-tab-left" aria-label="折叠侧栏">天体</button>
+        <div class="sp-drawer-body sp-rail-split">
+          <div class="sp-rail-modes" role="tablist" aria-label="切换列表">
+            <button type="button" data-rail-mode="bodies" class="is-on">天体</button>
+            <button type="button" data-rail-mode="stars">星域</button>
+          </div>
+          <nav class="sp-rail" id="sp-rail" aria-label="天体">
+            {PRIMARY.map((b) => (
+              <div class="sp-cell" data-parent={b.id}>
+                <button type="button" class="sp-pick" data-goto={b.id} data-id={b.id}>
+                  {TEX[b.id] ? (
+                    <img class="sp-thumb" src={TEX[b.id]} alt={b.name} width="32" height="32" loading="eager" />
+                  ) : (
+                    <span class="sp-thumb-swatch" style={`background:${hexColor(b.color)}`} title={b.name} />
+                  )}
+                  <span class="sp-name sp-muted">{b.name}</span>
+                </button>
+                {moonsOf(b.id).length > 0 && (
+                  <div class="sp-moon-pack" data-parent={b.id} title={`${b.name}的卫星`}>
+                    {moonsOf(b.id).map((m) => (
+                      <button
+                        type="button"
+                        class="sp-moon-chip"
+                        data-goto={m.id}
+                        data-id={m.id}
+                        title={m.name}
+                        aria-label={m.name}
+                      >
+                        <span class="sp-moon-dot" style={`background:${hexColor(m.color)}`} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </nav>
+          <nav id="sp-rail-stars" aria-label="邻近恒星">
+            {DEST_STARS.map((s) => (
+              <button
+                type="button"
+                class="sp-star-pick"
+                data-goto-star={s.id}
+                data-star={s.id}
+                title={`${s.nameZh} · ${s.distLy.toFixed(2)} ly`}
+              >
+                <span class="sp-star-dot" style={`background:${hexColor(s.color)};color:${hexColor(s.color)}`} />
+                <span class="sp-name sp-muted">{s.nameZh}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
       </aside>
 
-      <!-- 底部吸边：控制 -->
-      <footer class="sp-drawer sp-drawer-bottom sp-zone sp-corners" tabindex="-1">
-        <div class="sp-drawer-tab sp-muted">控制台</div>
+      <!-- 底部：默认展开，点标签折叠 -->
+      <footer class="sp-drawer sp-drawer-bottom" id="sp-drawer-bottom" tabindex="-1">
+        <button type="button" class="sp-drawer-tab sp-muted" id="sp-tab-bottom" aria-label="折叠控制台">控制台</button>
         <div class="sp-drawer-body sp-dock">
           <div class="sp-seg">
             <button type="button" data-mode="observe" class="sp-muted is-on">观察</button>

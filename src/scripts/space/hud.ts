@@ -1,11 +1,16 @@
 import { SPEED_PRESETS, TIME_PRESETS, type BodyId } from './constants';
 import { formatSpeed, type CameraController, type CamMode } from './camera';
+import type { ScaleMode } from './scale';
+import type { StarId } from './stars';
+import { STAR_BY_ID } from './stars';
 
 export interface HudState {
   simDate: Date;
   timeMult: number;
   mode: CamMode;
   focus: BodyId;
+  starFocus: StarId;
+  scaleMode: ScaleMode;
   speedMult: number;
   orbits: boolean;
   info: string;
@@ -17,15 +22,20 @@ export interface HudState {
 export class Hud {
   private root: HTMLElement;
   private onGoto: (id: BodyId) => void;
+  private onGotoStar: (id: StarId) => void;
+  private onReturnSol: () => void;
   private onChange: (patch: Partial<HudState>) => void;
   private onTour: () => void;
   private onFaceSun: () => void;
+  private lastScale: ScaleMode = 'solar';
 
   constructor(
     root: HTMLElement,
     private getState: () => HudState,
     handlers: {
       onGoto: (id: BodyId) => void;
+      onGotoStar: (id: StarId) => void;
+      onReturnSol: () => void;
       onChange: (patch: Partial<HudState>) => void;
       onTour: () => void;
       onFaceSun: () => void;
@@ -33,6 +43,8 @@ export class Hud {
   ) {
     this.root = root;
     this.onGoto = handlers.onGoto;
+    this.onGotoStar = handlers.onGotoStar;
+    this.onReturnSol = handlers.onReturnSol;
     this.onChange = handlers.onChange;
     this.onTour = handlers.onTour;
     this.onFaceSun = handlers.onFaceSun;
@@ -67,8 +79,41 @@ export class Hud {
       });
     });
 
+    this.root.querySelectorAll('[data-goto-star]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.onGotoStar((btn as HTMLElement).dataset.gotoStar as StarId);
+      });
+    });
+
     this.q('#sp-tour')?.addEventListener('click', () => this.onTour());
     this.q('#sp-face-sun')?.addEventListener('click', () => this.onFaceSun());
+    this.q('#sp-return-sol')?.addEventListener('click', () => this.onReturnSol());
+
+    // 侧栏：默认展开，点标签折叠/展开
+    this.q('#sp-tab-left')?.addEventListener('click', () => {
+      this.q('#sp-drawer-left')?.classList.toggle('is-collapsed');
+    });
+    this.q('#sp-tab-bottom')?.addEventListener('click', () => {
+      this.q('#sp-drawer-bottom')?.classList.toggle('is-collapsed');
+    });
+
+    // 左侧：天体 / 星域切换
+    this.root.querySelectorAll('[data-rail-mode]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mode = (btn as HTMLElement).dataset.railMode;
+        if (mode != 'bodies' && mode != 'stars') return;
+        this.root.dataset.rail = mode;
+        this.root.querySelectorAll('[data-rail-mode]').forEach((b) => {
+          b.classList.toggle('is-on', (b as HTMLElement).dataset.railMode == mode);
+        });
+        const tabLeft = this.q('#sp-tab-left');
+        if (tabLeft) tabLeft.textContent = mode == 'stars' ? '星域' : '天体';
+        // 在星域尺度点回「天体」→ 返回太阳系
+        if (mode == 'bodies' && this.getState().scaleMode == 'stellar') {
+          this.onReturnSol();
+        }
+      });
+    });
   }
 
   private q<T extends HTMLElement>(sel: string) {
@@ -80,7 +125,8 @@ export class Hud {
     const meta = this.q('#sp-meta');
     const info = this.q('#sp-info');
     const speedEl = this.q('#sp-speed-read');
-    if (meta) meta.textContent = `${fmtDate(s.simDate)}  ·  ${modeLabel(s.mode)}`;
+    const scaleTag = s.scaleMode == 'stellar' ? '星域' : '太阳系';
+    if (meta) meta.textContent = `${fmtDate(s.simDate)}  ·  ${scaleTag}  ·  ${modeLabel(s.mode)}`;
     if (info) info.textContent = s.info;
     if (speedEl) speedEl.textContent = s.speedText ? `航速 ${s.speedText}` : '';
 
@@ -88,15 +134,47 @@ export class Hud {
     if (tourBtn) {
       tourBtn.textContent = s.touring ? '停止游览' : '自动游览';
       tourBtn.classList.toggle('is-on', s.touring);
+      tourBtn.style.display = s.scaleMode == 'stellar' ? 'none' : '';
     }
+
+    const returnBtn = this.q<HTMLButtonElement>('#sp-return-sol');
+    if (returnBtn) returnBtn.style.display = s.scaleMode == 'stellar' ? '' : 'none';
+
+    const faceSun = this.q<HTMLButtonElement>('#sp-face-sun');
+    if (faceSun) faceSun.style.display = s.scaleMode == 'stellar' ? 'none' : '';
+
+    // 跨尺度时同步左侧轨
+    if (s.scaleMode == 'stellar') {
+      this.root.dataset.rail = 'stars';
+    } else if (this.lastScale == 'stellar') {
+      this.root.dataset.rail = 'bodies';
+    }
+    this.lastScale = s.scaleMode;
+    this.root.querySelectorAll('[data-rail-mode]').forEach((b) => {
+      b.classList.toggle('is-on', (b as HTMLElement).dataset.railMode == (this.root.dataset.rail || 'bodies'));
+    });
+
+    const tabLeft = this.q('#sp-tab-left');
+    if (tabLeft) tabLeft.textContent = this.root.dataset.rail == 'stars' ? '星域' : '天体';
+
+    this.root.dataset.scale = s.scaleMode;
 
     this.root.querySelectorAll('[data-mode]').forEach((btn) => {
       const m = (btn as HTMLElement).dataset.mode;
       const active = s.mode == 'tour' || s.mode == 'travel' || s.mode == 'facesun' ? 'observe' : s.mode;
       btn.classList.toggle('is-on', m == active);
     });
-    this.root.querySelectorAll('.sp-pick').forEach((btn) => {
+    // 选中态：整格高亮（含卫星）
+    this.root.querySelectorAll('.sp-pick, .sp-moon-chip').forEach((btn) => {
       btn.classList.toggle('is-on', (btn as HTMLElement).dataset.id == s.focus);
+    });
+    this.root.querySelectorAll('.sp-star-pick').forEach((btn) => {
+      btn.classList.toggle('is-on', (btn as HTMLElement).dataset.star == s.starFocus);
+    });
+    this.root.querySelectorAll('.sp-cell').forEach((cell) => {
+      const parent = (cell as HTMLElement).dataset.parent;
+      const hasOn = !!cell.querySelector('.sp-pick.is-on, .sp-moon-chip.is-on');
+      cell.classList.toggle('is-hot', hasOn || parent == s.focus);
     });
 
     const timeSel = this.q<HTMLSelectElement>('#sp-time');
@@ -135,6 +213,13 @@ export function describeFocus(_cam: CameraController, distAu: number, name: stri
       ? `${(km / 1000).toFixed(0)} 千km`
       : `${distAu.toFixed(3)} AU · ${lightMin < 60 ? lightMin.toFixed(1) + ' 光分' : (lightMin / 60).toFixed(2) + ' 光时'}`;
   return `${name}  ·  ${distText}`;
+}
+
+export function describeStarFocus(distLy: number, id: StarId): string {
+  const def = STAR_BY_ID[id];
+  const fromSol = def.distLy;
+  if (id == 'sol') return `${def.nameZh}  ·  原点 · 参考环 5 / 10 / 25 ly`;
+  return `${def.nameZh}  ·  近距 ${distLy.toFixed(2)} ly  ·  距太阳 ${fromSol.toFixed(2)} ly · ${def.spectral}`;
 }
 
 export { formatSpeed, TIME_PRESETS, SPEED_PRESETS };
