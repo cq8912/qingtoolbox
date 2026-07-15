@@ -1,0 +1,136 @@
+/* 科幻 HUD 局部皮肤：只包 .lab-hud，不改全站主题 */
+.lab-hud {
+  --void: #030508;
+  --cyan: #00e8ff;
+  --cyan-dim: rgba(0, 232, 255, 0.35);
+  --amber: #ffc857;
+  --panel: rgba(4, 10, 18, 0.88);
+  --line: rgba(0, 232, 255, 0.18);
+  --text: #e8f4ff;
+  --muted: rgba(232, 244, 255, 0.55);
+  --font-d: 'Oxanium', system-ui, sans-serif;
+  --font-m: 'IBM Plex Mono', ui-monospace, monospace;
+
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(160deg, #061018 0%, var(--void) 55%, #0a121c 100%);
+  color: var(--text);
+  font-family: var(--font-d);
+}
+
+.lab-hud canvas,
+.lab-hud .lab-canvas-host {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: min(60vh, 520px);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #010305;
+}
+
+.lab-hud .lab-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  align-items: end;
+  margin: 0.85rem 0;
+}
+
+.lab-hud label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.lab-hud input[type='number'],
+.lab-hud input[type='range'],
+.lab-hud input[type='file'],
+.lab-hud select {
+  font-family: var(--font-m);
+  font-size: 0.85rem;
+  color: var(--text);
+  background: rgba(0, 20, 32, 0.7);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+  min-width: 5.5rem;
+}
+
+.lab-hud input[type='range'] {
+  min-width: 10rem;
+  padding: 0;
+}
+
+.lab-hud .lab-btn {
+  font-family: var(--font-d);
+  font-size: 0.85rem;
+  color: var(--void);
+  background: var(--cyan);
+  border: none;
+  border-radius: 4px;
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+}
+
+.lab-hud .lab-btn.secondary {
+  background: transparent;
+  color: var(--cyan);
+  border: 1px solid var(--cyan-dim);
+}
+
+.lab-hud .lab-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lab-hud .lab-meta,
+.lab-hud .lab-note {
+  font-family: var(--font-m);
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0.4rem 0;
+}
+
+.lab-hud .lab-amber {
+  color: var(--amber);
+}
+
+.lab-hud table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-m);
+  font-size: 0.8rem;
+  margin-top: 0.75rem;
+}
+
+.lab-hud th,
+.lab-hud td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.45rem 0.35rem;
+  text-align: left;
+}
+
+.lab-hud th {
+  color: var(--cyan);
+  font-weight: 500;
+}
+
+.lab-related {
+  margin-top: 1.25rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.lab-related h2 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
+.lab-related a {
+  margin-right: 0.85rem;
+}

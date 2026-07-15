@@ -1,0 +1,68 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import '../../styles/lab-hud.css';
+---
+
+<ToolLayout
+  title="今日星空与月相 · 本地升落时刻"
+  description="按你的经纬度本地计算月相、日月升落与亮行星高度方位，历元由浏览器演算，无需上传。"
+  currentSlug="astro-today"
+>
+  <h1 slot="header">今日星空</h1>
+  <p class="intro">
+    本地历元计算月相照明比例、太阳与月球升落时刻，以及水金火木土当下高度与方位。默认北京坐标，可改手动或使用 GPS。
+  </p>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <div class="lab-hud" id="astro-root">
+    <p class="lab-meta">此刻 <span id="astro-now">—</span> · 月相照明 <span class="lab-amber" id="astro-illum">—</span></p>
+    <p class="lab-note" id="astro-geo-note">观测点初始化中…</p>
+    <p class="lab-note">坐标 <span id="astro-pos">—</span></p>
+
+    <div class="lab-controls">
+      <label>纬度 <input type="number" id="astro-lat" step="0.0001" /></label>
+      <label>经度 <input type="number" id="astro-lon" step="0.0001" /></label>
+      <button type="button" class="lab-btn" id="astro-apply">应用</button>
+      <button type="button" class="lab-btn secondary" id="astro-gps">定位</button>
+      <a class="lab-btn secondary" href="/space">打开轻星图</a>
+    </div>
+
+    <canvas id="astro-moon" width="320" height="220" aria-label="月相示意"></canvas>
+
+    <table>
+      <thead>
+        <tr><th>天体</th><th>升起</th><th>落下</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>太阳</td><td id="astro-sun-rise">—</td><td id="astro-sun-set">—</td></tr>
+        <tr><td>月球</td><td id="astro-moon-rise">—</td><td id="astro-moon-set">—</td></tr>
+      </tbody>
+    </table>
+
+    <table>
+      <thead>
+        <tr><th>行星</th><th>高度</th><th>方位</th><th>状态</th></tr>
+      </thead>
+      <tbody id="astro-planets"></tbody>
+    </table>
+    <p class="lab-note">历元由 astronomy-engine 在本地演算，数据不会上传。</p>
+  </div>
+
+  <div class="lab-related">
+    <h2>相关</h2>
+    <a href="/space">轻星图</a>
+    <a href="/tools/orbit-lab">轨道实验</a>
+    <a href="/tools/sat-pass">卫星过顶</a>
+  </div>
+</ToolLayout>
+
+<script>
+  import { bootAstroToday } from '../../scripts/astro-today/main';
+  bootAstroToday();
+</script>

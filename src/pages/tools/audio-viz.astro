@@ -1,0 +1,54 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import '../../styles/lab-hud.css';
+---
+
+<ToolLayout
+  title="音浪粒子 · 频谱可视化"
+  description="上传音频或使用麦克风，本地频谱驱动粒子场可视化，不上传不录音存档。"
+  currentSlug="audio-viz"
+>
+  <h1 slot="header">音浪粒子</h1>
+  <p class="intro">麦克风或本地音频 → 频谱分析 → 粒子场。全部在浏览器完成，音频不会上传。</p>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <div class="lab-hud">
+    <canvas id="audio-canvas" class="lab-canvas-host" aria-label="音浪粒子画布"></canvas>
+    <div class="lab-controls">
+      <label>音频文件 <input type="file" id="audio-file" accept="audio/*" /></label>
+      <button type="button" class="lab-btn" id="audio-mic">麦克风</button>
+      <button type="button" class="lab-btn secondary" id="audio-stop">停止</button>
+      <button type="button" class="lab-btn secondary" id="audio-pause">暂停画面</button>
+      <label>灵敏度
+        <input type="range" id="audio-sens" min="0.3" max="2.5" step="0.1" value="1" />
+      </label>
+      <label>粒子数
+        <input type="number" id="audio-count" min="50" max="800" step="50" value="400" />
+      </label>
+    </div>
+    <p class="lab-meta" id="audio-status">等待输入…</p>
+  </div>
+
+  <div class="lab-related">
+    <h2>相关</h2>
+    <a href="/tools/molecule">分子视界</a>
+    <a href="/space">轻星图</a>
+    <a href="/tools/astro-today">今日星空</a>
+  </div>
+</ToolLayout>
+
+<style>
+  #audio-canvas {
+    width: 100%;
+    height: min(60vh, 520px);
+  }
+</style>
+
+<script>
+  import { bootAudioViz } from '../../scripts/audio-viz/main';
+  bootAudioViz();
+</script>

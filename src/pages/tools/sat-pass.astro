@@ -1,0 +1,51 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import '../../styles/lab-hud.css';
+---
+
+<ToolLayout
+  title="ISS 卫星过顶简报"
+  description="根据本地经纬度与仓库内 ISS TLE 快照，计算未来 48 小时过顶时刻与最大仰角。"
+  currentSlug="sat-pass"
+>
+  <h1 slot="header">卫星过顶</h1>
+  <p class="intro">
+    国际空间站（ISS）过顶简报：星历来自仓库内静态 TLE，浏览器本地传播。默认北京，可改坐标或定位。
+  </p>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <div class="lab-hud">
+    <p class="lab-note" id="sat-note">—</p>
+    <p class="lab-meta">TLE 快照 <span class="lab-amber" id="sat-updated">—</span> · <span id="sat-geo-note">—</span></p>
+    <div class="lab-controls">
+      <label>纬度 <input type="number" id="sat-lat" step="0.0001" /></label>
+      <label>经度 <input type="number" id="sat-lon" step="0.0001" /></label>
+      <button type="button" class="lab-btn" id="sat-apply">计算</button>
+      <button type="button" class="lab-btn secondary" id="sat-gps">定位</button>
+    </div>
+    <p class="lab-meta" id="sat-status">—</p>
+    <canvas id="sat-canvas" width="640" height="180" aria-label="下次过顶仰角草图"></canvas>
+    <table>
+      <thead>
+        <tr><th>开始</th><th>最高</th><th>结束</th><th>最大仰角</th><th>最高时方位</th></tr>
+      </thead>
+      <tbody id="sat-rows"></tbody>
+    </table>
+  </div>
+
+  <div class="lab-related">
+    <h2>相关</h2>
+    <a href="/tools/astro-today">今日星空</a>
+    <a href="/space">轻星图</a>
+    <a href="/tools/orbit-lab">轨道实验</a>
+  </div>
+</ToolLayout>
+
+<script>
+  import { bootSatPass } from '../../scripts/sat-pass/main';
+  bootSatPass();
+</script>

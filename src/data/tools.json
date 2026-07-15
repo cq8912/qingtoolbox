@@ -23,6 +23,46 @@
     ]
   },
   {
+    "slug": "astro-today",
+    "name": "今日星空",
+    "desc": "月相、日月升落与亮行星高度方位",
+    "icon": "月",
+    "category": "edu",
+    "tags": ["教育", "天文"]
+  },
+  {
+    "slug": "orbit-lab",
+    "name": "轨道实验",
+    "desc": "霍曼转移动画与 Δv 读数",
+    "icon": "轨",
+    "category": "edu",
+    "tags": ["教育", "天文"]
+  },
+  {
+    "slug": "sat-pass",
+    "name": "卫星过顶",
+    "desc": "ISS 未来 48 小时过顶简报",
+    "icon": "卫",
+    "category": "edu",
+    "tags": ["教育", "天文"]
+  },
+  {
+    "slug": "molecule",
+    "name": "分子视界",
+    "desc": "3D 球棍模型与 DNA 双螺旋",
+    "icon": "分",
+    "category": "edu",
+    "tags": ["教育", "可视化"]
+  },
+  {
+    "slug": "audio-viz",
+    "name": "音浪粒子",
+    "desc": "麦克风或音频频谱粒子可视化",
+    "icon": "波",
+    "category": "edu",
+    "tags": ["教育", "可视化"]
+  },
+  {
     "slug": "json-viewer",
     "name": "JSON 查看器",
     "desc": "格式化、校验、修复与压缩 JSON",

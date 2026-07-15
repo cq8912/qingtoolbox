@@ -1,0 +1,55 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import '../../styles/lab-hud.css';
+---
+
+<ToolLayout
+  title="分子视界 · 3D 球棍与 DNA 螺旋"
+  description="浏览器本地浏览水、简化咖啡因与 DNA 双螺旋球棍模型，可旋转与切换碱基对显示。"
+  currentSlug="molecule"
+>
+  <h1 slot="header">分子视界</h1>
+  <p class="intro">预置球棍模型（不加载 PDB）：水分子、简化咖啡因、DNA 双螺旋。拖动旋转，滚轮缩放。</p>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <div class="lab-hud">
+    <canvas id="mol-canvas" class="lab-canvas-host" aria-label="分子三维视图"></canvas>
+    <div class="lab-controls">
+      <label>分子
+        <select id="mol-select">
+          <option value="dna">DNA 双螺旋</option>
+          <option value="water">水 H₂O</option>
+          <option value="caffeine">咖啡因（简化）</option>
+        </select>
+      </label>
+      <button type="button" class="lab-btn secondary" id="mol-pairs">隐藏碱基对</button>
+    </div>
+    <p class="lab-meta">
+      <span id="mol-name">—</span> · 原子数 <span class="lab-amber" id="mol-count">—</span>
+    </p>
+    <p class="lab-note">色例：C 灰 · H 白 · O 红 · N 蓝 · P 橙</p>
+  </div>
+
+  <div class="lab-related">
+    <h2>相关</h2>
+    <a href="/space">轻星图</a>
+    <a href="/tools/audio-viz">音浪粒子</a>
+    <a href="/tools/astro-today">今日星空</a>
+  </div>
+</ToolLayout>
+
+<style>
+  #mol-canvas {
+    width: 100%;
+    height: min(60vh, 520px);
+  }
+</style>
+
+<script>
+  import { bootMolecule } from '../../scripts/molecule/main';
+  bootMolecule();
+</script>

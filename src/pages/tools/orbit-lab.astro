@@ -1,0 +1,61 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+import '../../styles/lab-hud.css';
+---
+
+<ToolLayout
+  title="霍曼转移轨道实验"
+  description="二维霍曼转移可视化：调节内外圆轨道半径，观看转移椭圆动画并读出 Δv。"
+  currentSlug="orbit-lab"
+>
+  <h1 slot="header">轨道实验</h1>
+  <p class="intro">
+    共面双圆轨道之间的霍曼转移：拖动半径滑杆，观察转移椭圆与两次点火所需的 Δv（μ=1 标准化单位）。
+  </p>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <div class="lab-hud">
+    <canvas id="orbit-canvas" class="lab-canvas-host" aria-label="霍曼转移示意"></canvas>
+    <div class="lab-controls">
+      <label>内轨 r1 <span id="orbit-r1-val">1.00</span>
+        <input type="range" id="orbit-r1" min="0.5" max="5" step="0.01" value="1" />
+      </label>
+      <label>外轨 r2 <span id="orbit-r2-val">2.00</span>
+        <input type="range" id="orbit-r2" min="0.5" max="5" step="0.01" value="2" />
+      </label>
+      <button type="button" class="lab-btn" id="orbit-play">暂停</button>
+      <button type="button" class="lab-btn secondary" id="orbit-replay">重播</button>
+    </div>
+    <p class="lab-meta">
+      半长轴 a=<span class="lab-amber" id="orbit-a">—</span>
+      · Δv₁=<span id="orbit-dv1">—</span>
+      · Δv₂=<span id="orbit-dv2">—</span>
+      · Σ=<span class="lab-amber" id="orbit-dvt">—</span>
+    </p>
+    <p class="lab-note">仅演示共面霍曼转移，不做三体或逃逸轨道。</p>
+  </div>
+
+  <div class="lab-related">
+    <h2>相关</h2>
+    <a href="/space">轻星图</a>
+    <a href="/tools/astro-today">今日星空</a>
+    <a href="/tools/sat-pass">卫星过顶</a>
+  </div>
+</ToolLayout>
+
+<style>
+  #orbit-canvas {
+    width: 100%;
+    height: min(60vh, 520px);
+  }
+</style>
+
+<script>
+  import { bootOrbitLab } from '../../scripts/orbit-lab/main';
+  bootOrbitLab();
+</script>
