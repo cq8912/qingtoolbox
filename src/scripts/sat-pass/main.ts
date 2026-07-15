@@ -6,7 +6,8 @@ import {
   parseLatLon,
   requestGeo,
 } from '../shared/geo';
-import { findPasses, loadSatrec, tleMeta } from './propagate';
+import { loadSatrec, tleMeta } from './propagate';
+import { buildSkyState, startSkyAnim, type SkyVizState } from './sky-viz';
 
 function $(id: string) {
   return document.getElementById(id)!;
@@ -16,23 +17,29 @@ export function bootSatPass() {
   const satrec = loadSatrec();
   const meta = tleMeta();
   $('sat-updated').textContent = meta.updated;
-  $('sat-note').textContent = `星历快照日期 ${meta.updated}，精度随时间下降；不自动联网更新。`;
 
   const latInput = $('sat-lat') as HTMLInputElement;
   const lonInput = $('sat-lon') as HTMLInputElement;
   latInput.value = String(DEFAULT_LAT);
   lonInput.value = String(DEFAULT_LON);
 
+  let skyState: SkyVizState = buildSkyState(satrec, DEFAULT_LAT, DEFAULT_LON);
+  const canvas = $('sat-canvas') as HTMLCanvasElement;
+  startSkyAnim(canvas, () => skyState);
+
   const run = (lat: number, lon: number) => {
-    $('sat-status').textContent = '计算中…';
-    const passes = findPasses(satrec, lat, lon, new Date(), 48, 10, 30);
+    skyState = buildSkyState(satrec, lat, lon);
+    const passes = skyState.passes;
     const tbody = $('sat-rows');
     if (passes.length == 0) {
       tbody.innerHTML = '<tr><td colspan="5">未来 48h 内无仰角≥10° 的过顶</td></tr>';
+      $('sat-next').textContent = '暂无可见过顶';
     } else {
+      const next = passes[0];
+      $('sat-next').textContent = `最近：${formatLocalTime(next.max)} 头顶 ${next.maxEl.toFixed(0)}°（${formatAz(next.azAtMax)}）`;
       tbody.innerHTML = passes
         .map(
-          (p) => `<tr>
+          (p, i) => `<tr class="${i == 0 ? 'sat-row-next' : ''}">
             <td>${formatLocalTime(p.start)}</td>
             <td>${formatLocalTime(p.max)}</td>
             <td>${formatLocalTime(p.end)}</td>
@@ -42,41 +49,7 @@ export function bootSatPass() {
         )
         .join('');
     }
-    $('sat-status').textContent = `共 ${passes.length} 次过顶（48h · 仰角≥10°）`;
-    drawHorizon(passes);
-  };
-
-  const drawHorizon = (passes: ReturnType<typeof findPasses>) => {
-    const canvas = $('sat-canvas') as HTMLCanvasElement;
-    const ctx = canvas.getContext('2d')!;
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.fillStyle = '#010305';
-    ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(0,232,255,0.35)';
-    ctx.beginPath();
-    ctx.moveTo(20, h - 24);
-    ctx.lineTo(w - 20, h - 24);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(232,244,255,0.5)';
-    ctx.font = '11px monospace';
-    ctx.fillText('地平线', 20, h - 8);
-    if (passes.length == 0) return;
-    // 草图：下一次过顶的仰角弧
-    const p = passes[0];
-    const peakX = w / 2;
-    const peakY = h - 24 - Math.min(p.maxEl, 90) * ((h - 60) / 90);
-    ctx.strokeStyle = '#00e8ff';
-    ctx.beginPath();
-    ctx.moveTo(40, h - 24);
-    ctx.quadraticCurveTo(peakX, peakY, w - 40, h - 24);
-    ctx.stroke();
-    ctx.fillStyle = '#ffc857';
-    ctx.beginPath();
-    ctx.arc(peakX, peakY, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(232,244,255,0.7)';
-    ctx.fillText(`下次最大仰角 ${p.maxEl.toFixed(1)}°`, peakX - 60, peakY - 10);
+    $('sat-status').textContent = `共 ${passes.length} 次过顶 · 动画演示最近一次`;
   };
 
   $('sat-apply').addEventListener('click', () => {
@@ -97,6 +70,9 @@ export function bootSatPass() {
     });
   });
 
+  // 进入即算
+  run(DEFAULT_LAT, DEFAULT_LON);
+  $('sat-geo-note').textContent = '观测点：北京（默认）';
   requestGeo((pos) => {
     latInput.value = pos.lat.toFixed(4);
     lonInput.value = pos.lon.toFixed(4);

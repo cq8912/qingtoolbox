@@ -10,7 +10,7 @@ import '../../styles/lab-hud.css';
 >
   <h1 slot="header">卫星过顶</h1>
   <p class="intro">
-    国际空间站（ISS）过顶简报：星历来自仓库内静态 TLE，浏览器本地传播。默认北京，可改坐标或定位。
+    <strong>过顶</strong>：国际空间站从你头顶附近飞过的一段时间。此时 ISS 最亮、最好找——仰角越高越接近「正头顶」。
   </p>
 
   <link
@@ -18,23 +18,27 @@ import '../../styles/lab-hud.css';
     rel="stylesheet"
   />
 
-  <div class="lab-hud">
-    <p class="lab-note" id="sat-note">—</p>
-    <p class="lab-meta">TLE 快照 <span class="lab-amber" id="sat-updated">—</span> · <span id="sat-geo-note">—</span></p>
-    <div class="lab-controls">
-      <label>纬度 <input type="number" id="sat-lat" step="0.0001" /></label>
-      <label>经度 <input type="number" id="sat-lon" step="0.0001" /></label>
-      <button type="button" class="lab-btn" id="sat-apply">计算</button>
-      <button type="button" class="lab-btn secondary" id="sat-gps">定位</button>
-    </div>
-    <p class="lab-meta" id="sat-status">—</p>
-    <canvas id="sat-canvas" width="640" height="180" aria-label="下次过顶仰角草图"></canvas>
-    <table>
-      <thead>
-        <tr><th>开始</th><th>最高</th><th>结束</th><th>最大仰角</th><th>最高时方位</th></tr>
-      </thead>
-      <tbody id="sat-rows"></tbody>
-    </table>
+  <div class="lab-hud lab-hero">
+    <canvas id="sat-canvas" class="lab-hero-canvas" aria-label="ISS 过顶天穹预测"></canvas>
+    <p class="lab-hero-caption lab-amber" id="sat-next">计算中…</p>
+
+    <details class="lab-details" open>
+      <summary>过顶时刻表</summary>
+      <p class="lab-note">星历快照 <span class="lab-amber" id="sat-updated">—</span> · <span id="sat-geo-note">—</span></p>
+      <div class="lab-controls">
+        <label>纬度 <input type="number" id="sat-lat" step="0.0001" /></label>
+        <label>经度 <input type="number" id="sat-lon" step="0.0001" /></label>
+        <button type="button" class="lab-btn" id="sat-apply">重算</button>
+        <button type="button" class="lab-btn secondary" id="sat-gps">定位</button>
+      </div>
+      <p class="lab-meta" id="sat-status">—</p>
+      <table>
+        <thead>
+          <tr><th>升起</th><th>最高（头顶最近）</th><th>落下</th><th>最大仰角</th><th>方位</th></tr>
+        </thead>
+        <tbody id="sat-rows"></tbody>
+      </table>
+    </details>
   </div>
 
   <div class="lab-related">

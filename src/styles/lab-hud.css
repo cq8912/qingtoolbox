@@ -31,6 +31,57 @@
   background: #010305;
 }
 
+/* 主视觉区：进页即见效果 */
+.lab-hud.lab-hero {
+  padding: 0.75rem;
+}
+
+.lab-hero-canvas {
+  display: block;
+  width: 100%;
+  height: min(72vh, 640px) !important;
+  max-height: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #010305;
+}
+
+.lab-mol-canvas {
+  height: min(78vh, 720px) !important;
+}
+
+.lab-hero-caption {
+  font-family: var(--font-m);
+  font-size: 0.88rem;
+  color: var(--muted);
+  margin: 0.65rem 0 0.5rem;
+  text-align: center;
+}
+
+.lab-phase-big {
+  font-family: var(--font-d);
+  font-size: 1.05rem;
+}
+
+.lab-details {
+  margin-top: 0.85rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.65rem;
+}
+
+.lab-details summary {
+  cursor: pointer;
+  color: var(--cyan);
+  font-family: var(--font-d);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.lab-hud table tr.sat-row-next td {
+  color: var(--amber);
+  font-weight: 600;
+}
+
 .lab-hud .lab-controls {
   display: flex;
   flex-wrap: wrap;
