@@ -59,7 +59,9 @@ export class BodySystem {
   floatingOrigin = new THREE.Vector3();
   private orbitVisible = true;
   private ticks: TickFn[] = [];
-  private sunWorld = new THREE.Vector3(0, 0, 0);
+  /** 太阳的场景世界坐标（已扣 FO），供光照 / 地球着色 */
+  private sunScene = new THREE.Vector3(0, 0, 0);
+  private sunLight: THREE.PointLight | null = null;
   private tmp = new THREE.Vector3();
 
   constructor(
@@ -71,6 +73,17 @@ export class BodySystem {
       this.logical.set(def.id, new THREE.Vector3());
       this.meshes.set(def.id, this.createBody(def));
     }
+  }
+
+  /** 点光跟随太阳网格；FO 重设后也要同步 */
+  attachSunLight(light: THREE.PointLight) {
+    this.sunLight = light;
+    this.syncSunLight();
+  }
+
+  private syncSunLight() {
+    this.getWorldPos('sun', this.sunScene);
+    if (this.sunLight) this.sunLight.position.copy(this.sunScene);
   }
 
   private mapFor(id: BodyId): THREE.Texture | null {
@@ -218,7 +231,8 @@ export class BodySystem {
   }
 
   tick(t: number) {
-    for (const fn of this.ticks) fn(t, this.sunWorld);
+    this.syncSunLight();
+    for (const fn of this.ticks) fn(t, this.sunScene);
   }
 
   updatePositions(when: Date, rebuildOrbits = false) {
@@ -228,7 +242,7 @@ export class BodySystem {
       log.set(p.x, p.y, p.z);
       this.applyLocal(def.id);
     }
-    this.sunWorld.copy(this.logical.get('sun')!);
+    this.syncSunLight();
 
     // 潮汐锁定：卫星朝向父星（世界坐标）
     for (const def of BODIES) {
@@ -263,6 +277,7 @@ export class BodySystem {
     if (delta.lengthSq() < 1e-18) return this.tmp.set(0, 0, 0);
     this.floatingOrigin.copy(next);
     for (const def of BODIES) this.applyLocal(def.id);
+    this.syncSunLight();
     // 仅行星日心轨道需补偿 FO；卫星环挂在父星下，跟着走
     for (const [id, line] of this.orbitLines) {
       const def = BODY_BY_ID[id as BodyId];

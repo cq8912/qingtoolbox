@@ -346,8 +346,11 @@ export function createEarthGroup(
     update(t, sunWorld) {
       earth.rotation.y = t * 0.05;
       clouds.rotation.y = t * 0.058;
+      // sunWorld / earthWorld 都是场景世界坐标（已扣 FO）
       group.getWorldPosition(earthWorld);
-      sunDir.copy(sunWorld).sub(earthWorld).normalize();
+      sunDir.copy(sunWorld).sub(earthWorld);
+      if (sunDir.lengthSq() < 1e-18) sunDir.set(1, 0, 0);
+      else sunDir.normalize();
       uniforms.uSunDir.value.copy(sunDir);
     },
   };

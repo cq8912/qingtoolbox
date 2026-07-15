@@ -203,6 +203,7 @@ export function bootSpace() {
       const pack = createScene(canvas, tex);
       camera = pack.camera;
       bodies = new BodySystem(pack.scene, tex);
+      bodies.attachSunLight(pack.sunLight);
       stars = new StarSystem(pack.scene, tex.sun);
       bodies.updatePositions(state.simDate, true);
       cam = new CameraController(camera, canvas, bodies, stars, onScaleChange);

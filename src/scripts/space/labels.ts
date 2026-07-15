@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BODY_BY_ID, type BodyId } from './constants';
 import type { BodySystem } from './bodies';
 import type { StarSystem, StarId } from './stars';
-import { NEARBY_STARS, STAR_BY_ID } from './stars';
+import { NEARBY_STARS } from './stars';
 import type { ScaleMode } from './scale';
 
 function fmtSunDistAu(au: number): string {

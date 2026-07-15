@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { C_AU_PER_S, BODIES, satelliteEnvelope, type BodyId } from './constants';
+import { C_AU_PER_S, BODY_BY_ID, BODIES, satelliteEnvelope, type BodyId } from './constants';
+
+/** 自动游览只绕行主星/主行星，不穿插卫星，避免近距连跳 */
+const TOUR_IDS: BodyId[] = BODIES.filter((b) => !b.moonOf).map((b) => b.id);
 import type { BodySystem } from './bodies';
 import type { TravelTrail } from './minimap';
 import type { StarSystem, StarId } from './stars';
@@ -59,7 +62,12 @@ export class CameraController {
 
   private tourIndex = 0;
   private tourSpin = 0;
-  private tourRadius = 0.1;
+  private tourSpinStart = 0;
+  private tourRadiusFrom = 0.1;
+  private tourRadiusTo = 0.1;
+  private tourHeightFrom = 0;
+  private tourHeightTo = 0;
+  private tourOrbitBlend = 0;
   private tourPhase: 'goto' | 'spin' = 'goto';
 
   /** 面向太阳：绕当前轨道中心旋转，距离不变，始终注视中心天体 */
@@ -76,7 +84,7 @@ export class CameraController {
   private tmp = new THREE.Vector3();
   private tmp2 = new THREE.Vector3();
   private tmp3 = new THREE.Vector3();
-  private sunPos = new THREE.Vector3(0, 0, 0);
+  private tmpSun = new THREE.Vector3();
 
   constructor(
     private camera: THREE.PerspectiveCamera,
@@ -153,9 +161,10 @@ export class CameraController {
     this.baseFov = camera.fov;
   }
 
-  /** 背阳侧略偏：星球在前景，太阳从侧后方露出（不透过夜面看太阳） */
+  /** 背阳侧略偏：相机在夜侧看行星，太阳在侧后方（用真实太阳世界坐标） */
   private sunOffsetDir(pivot: THREE.Vector3, out: THREE.Vector3) {
-    const away = out.copy(pivot).sub(this.sunPos);
+    this.bodies.getWorldPos('sun', this.tmpSun);
+    const away = out.copy(pivot).sub(this.tmpSun);
     if (away.lengthSq() < 1e-12) away.set(0, 0, 1);
     away.normalize();
     let side = this.tmp2.set(0, 1, 0).cross(away);
@@ -341,8 +350,12 @@ export class CameraController {
   startTour() {
     if (this.scaleMode != 'solar') return;
     this.touring = true;
-    this.tourIndex = BODIES.findIndex((b) => b.id == this.focus);
-    if (this.tourIndex < 0) this.tourIndex = 0;
+    let idx = TOUR_IDS.indexOf(this.focus);
+    if (idx < 0) {
+      const parent = BODY_BY_ID[this.focus]?.moonOf;
+      idx = parent ? TOUR_IDS.indexOf(parent) : 0;
+    }
+    this.tourIndex = Math.max(0, idx);
     this.tourPhase = 'goto';
     this.mode = 'tour';
     this.orbit.enabled = false;
@@ -359,17 +372,34 @@ export class CameraController {
   }
 
   private gotoTourBody() {
-    const id = BODIES[this.tourIndex].id;
+    const id = TOUR_IDS[this.tourIndex];
     this.travelTo(id, () => {
       if (!this.touring) return;
-      this.focus = id;
-      this.tourPhase = 'spin';
-      this.tourSpin = 0;
-      this.mode = 'tour';
-      this.orbit.enabled = false;
-      const def = this.bodies.getDef(id);
-      this.tourRadius = Math.max(def.visualRadius * 11, 0.04);
+      this.beginTourSpin(id);
     });
+  }
+
+  /** 从跃迁落点连续切入环视：保留当前方位角/距离，再缓入标准环视半径 */
+  private beginTourSpin(id: BodyId) {
+    this.focus = id;
+    this.tourPhase = 'spin';
+    this.mode = 'tour';
+    this.orbit.enabled = false;
+
+    const def = this.bodies.getDef(id);
+    this.bodies.getWorldPos(id, this.tmp);
+    const off = this.tmp2.copy(this.camera.position).sub(this.tmp);
+    const flat = Math.hypot(off.x, off.z);
+
+    this.tourSpin = Math.atan2(off.z, off.x);
+    this.tourSpinStart = this.tourSpin;
+    this.tourRadiusFrom = Math.max(flat, 1e-5);
+    this.tourHeightFrom = off.y;
+    this.tourRadiusTo = id == 'sun'
+      ? Math.max(def.visualRadius * 28, 1.2)
+      : Math.max(def.visualRadius * 11, 0.04);
+    this.tourHeightTo = this.tourRadiusTo * 0.28;
+    this.tourOrbitBlend = 0;
   }
 
   /** 从太阳系跃迁到邻近恒星；已在星域则同尺度飞行 */
@@ -559,11 +589,28 @@ export class CameraController {
     } else {
       maxView = Math.max(maxView, satelliteEnvelope(id) * 0.65);
     }
-    if (this.travelViewDist > maxView * 2.5) this.travelViewDist = maxView * 2.5;
-    if (minView > 0 && this.travelViewDist < minView) this.travelViewDist = minView;
-    if (!destDef.parent && id != 'sun') {
-      const env = satelliteEnvelope(id);
-      if (this.travelViewDist < env * 0.55) this.travelViewDist = env * 0.55;
+
+    // 游览：落点贴近后续环视环，减少「飞停 → 突然换半径」
+    if (this.touring) {
+      const r = id == 'sun'
+        ? Math.max(destDef.visualRadius * 28, 1.2)
+        : Math.max(destDef.visualRadius * 11, 0.04);
+      this.travelViewDist = Math.sqrt(r * r + (r * 0.28) ** 2);
+      this.travelViewDir.y = 0.28;
+      const flatLen = Math.hypot(this.travelViewDir.x, this.travelViewDir.z);
+      if (flatLen < 1e-6) this.travelViewDir.set(1, 0.28, 0);
+      else {
+        this.travelViewDir.x /= flatLen;
+        this.travelViewDir.z /= flatLen;
+      }
+      this.travelViewDir.normalize();
+    } else {
+      if (this.travelViewDist > maxView * 2.5) this.travelViewDist = maxView * 2.5;
+      if (minView > 0 && this.travelViewDist < minView) this.travelViewDist = minView;
+      if (!destDef.parent && id != 'sun') {
+        const env = satelliteEnvelope(id);
+        if (this.travelViewDist < env * 0.55) this.travelViewDist = env * 0.55;
+      }
     }
 
     const dest = this.bodies.getWorldPos(id, this.tmp);
@@ -574,7 +621,8 @@ export class CameraController {
     const dist = this.travelFrom.distanceTo(endPos);
     this.travelDur = Math.min(6.2, Math.max(1.8, Math.log10(dist + 1) * 2.0 + dist * 0.18));
     this.travelPhase = 'hold';
-    this.travelHold = 0.35;
+    // 游览时缩短停顿，避免跳转/环视之间「愣住」
+    this.travelHold = this.touring ? 0.08 : 0.35;
 
     this.travelTrail = {
       from: this.travelFrom.clone(),
@@ -726,24 +774,29 @@ export class CameraController {
 
       if (this.travelT >= 1) {
         this.travelPhase = 'settle';
-        this.travelSettle = 0.85;
+        this.travelSettle = this.touring ? 0.32 : 0.85;
         this.travelSettlePos.copy(this.camera.position);
       }
       return;
     }
 
     if (this.mode == 'tour' && this.tourPhase == 'spin') {
+      // 约 1.2s 内从落地半径/高度缓到标准环视，避免方位瞬间跳变
+      this.tourOrbitBlend = Math.min(1, this.tourOrbitBlend + dt / 1.2);
+      const b = easeInOutCubic(this.tourOrbitBlend);
+      const r = this.tourRadiusFrom + (this.tourRadiusTo - this.tourRadiusFrom) * b;
+      const h = this.tourHeightFrom + (this.tourHeightTo - this.tourHeightFrom) * b;
       this.tourSpin += (Math.PI * 2 * dt) / 9;
       const target = this.bodies.getWorldPos(this.focus, this.tmp);
       const a = this.tourSpin;
       this.camera.position.set(
-        target.x + Math.cos(a) * this.tourRadius,
-        target.y + this.tourRadius * 0.28,
-        target.z + Math.sin(a) * this.tourRadius,
+        target.x + Math.cos(a) * r,
+        target.y + h,
+        target.z + Math.sin(a) * r,
       );
       this.camera.lookAt(target);
-      if (this.tourSpin >= Math.PI * 2) {
-        this.tourIndex = (this.tourIndex + 1) % BODIES.length;
+      if (this.tourSpin - this.tourSpinStart >= Math.PI * 2) {
+        this.tourIndex = (this.tourIndex + 1) % TOUR_IDS.length;
         this.tourPhase = 'goto';
         this.gotoTourBody();
       }
