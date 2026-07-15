@@ -11,6 +11,18 @@
     ]
   },
   {
+    "slug": "space",
+    "name": "轻星图",
+    "desc": "三维太阳系与邻近恒星，真实历元漫游",
+    "icon": "星",
+    "category": "edu",
+    "path": "/space",
+    "tags": [
+      "教育",
+      "天文"
+    ]
+  },
+  {
     "slug": "json-viewer",
     "name": "JSON 查看器",
     "desc": "格式化、校验、修复与压缩 JSON",

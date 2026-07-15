@@ -3,6 +3,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import tools from '../data/tools.json';
 import categories from '../data/categories.json';
 
+function toolHref(t: { slug: string; path?: string }) {
+  return t.path || `/tools/${t.slug}`;
+}
+
 // 按分类分组工具
 const grouped = categories.map((cat) => ({
   ...cat,
@@ -28,22 +32,12 @@ const grouped = categories.map((cat) => ({
       </div>
     </section>
 
-    <section class="space-promo">
-      <a href="/space" class="space-promo-link">
-        <div>
-          <h2>轻星图 · 太阳系</h2>
-          <p>真实历元行星位置、椭圆轨道、缩放视角，光速/超光速巡航置身遨游。</p>
-        </div>
-        <span class="space-promo-cta">进入全屏 →</span>
-      </a>
-    </section>
-
     {grouped.map((group) => (
       <section class="tool-category">
         <h2 class="category-title">{group.name}</h2>
         <div class="tool-grid">
           {group.tools.map((tool) => (
-            <a href={`/tools/${tool.slug}`} class="tool-card">
+            <a href={toolHref(tool)} class="tool-card">
               <div class="icon">{tool.icon}</div>
               <div class="tool-card-body">
                 <h3>{tool.name}</h3>

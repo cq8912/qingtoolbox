@@ -7,10 +7,14 @@ interface Props {
 
 const { currentSlug } = Astro.props;
 const related = tools.filter((t) => t.slug != currentSlug).slice(0, 4);
+
+function toolHref(t: { slug: string; path?: string }) {
+  return t.path || `/tools/${t.slug}`;
+}
 ---
 
 <div class="related-links">
   {related.map((t) => (
-    <a href={`/tools/${t.slug}`}>{t.name}</a>
+    <a href={toolHref(t)}>{t.name}</a>
   ))}
 </div>

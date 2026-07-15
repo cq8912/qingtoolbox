@@ -3,6 +3,10 @@ import BaseLayout from './BaseLayout.astro';
 import tools from '../data/tools.json';
 interface Props { title: string; description: string; currentSlug: string; }
 const { title, description, currentSlug } = Astro.props;
+
+function toolHref(t: { slug: string; path?: string }) {
+  return t.path || `/tools/${t.slug}`;
+}
 ---
 
 <BaseLayout title={title} description={description} wide={true}>
@@ -11,7 +15,7 @@ const { title, description, currentSlug } = Astro.props;
       <div class="tool-sidebar-title">全部工具</div>
       {tools.map((t) => (
         <a
-          href={`/tools/${t.slug}`}
+          href={toolHref(t)}
           class={t.slug == currentSlug ? 'active' : ''}
           title={t.name}
         >
