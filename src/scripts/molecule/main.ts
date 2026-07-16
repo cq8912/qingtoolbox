@@ -1,19 +1,19 @@
 import { buildDna } from './dna';
-import { caffeine, water, type Molecule } from './presets';
+import { caffeine, dopamine, serotonin, water, type Molecule } from './presets';
 import { createMolScene } from './scene';
 
 function $(id: string) {
   return document.getElementById(id)!;
 }
 
-const TOUR_ORDER = ['dna', 'caffeine', 'water'] as const;
+const TOUR_ORDER = ['dna', 'dopamine', 'serotonin', 'caffeine', 'water'] as const;
 const TOUR_SEC = 9;
 
 export function bootMolecule() {
   const canvas = $('mol-canvas') as HTMLCanvasElement;
   const scene = createMolScene(canvas);
   const dna = buildDna(16);
-  const catalog: Record<string, Molecule> = { water, caffeine, dna };
+  const catalog: Record<string, Molecule> = { water, caffeine, dopamine, serotonin, dna };
 
   let current = 'dna';
   let showPairs = true;

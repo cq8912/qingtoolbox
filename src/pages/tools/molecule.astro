@@ -9,7 +9,7 @@ import '../../styles/lab-hud.css';
   currentSlug="molecule"
 >
   <h1 slot="header">分子视界</h1>
-  <p class="intro">进入即自动旋转巡游 DNA → 咖啡因 → 水分子。拖动可手动旋转，滚轮缩放。</p>
+  <p class="intro">进入即自动旋转巡游 DNA → 多巴胺 → 5-羟色胺 → 咖啡因 → 水。拖动可手动旋转，滚轮缩放。</p>
 
   <link
     href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Oxanium:wght@500;700&display=swap"
@@ -26,8 +26,10 @@ import '../../styles/lab-hud.css';
       <label>分子
         <select id="mol-select">
           <option value="dna">DNA 双螺旋</option>
-          <option value="water">水 H₂O</option>
+          <option value="dopamine">多巴胺</option>
+          <option value="serotonin">5-羟色胺</option>
           <option value="caffeine">咖啡因（简化）</option>
+          <option value="water">水 H₂O</option>
         </select>
       </label>
       <button type="button" class="lab-btn secondary" id="mol-pairs">隐藏碱基对</button>

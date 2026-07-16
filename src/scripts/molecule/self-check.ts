@@ -16,5 +16,11 @@ const { phosphates, half } = dnaChainCounts(dna);
 assert(phosphates == 32, `phosphates=${phosphates}`);
 assert(half == 16, `half=${half}`);
 
+assert(PRESETS.some((m) => m.id == 'dopamine'), 'missing dopamine');
+assert(PRESETS.some((m) => m.id == 'serotonin'), 'missing serotonin');
+
 console.log('PASS: molecule presets OK');
-console.log(`  water=${PRESETS[0].atoms.length} caffeine=${PRESETS[1].atoms.length} dnaAtoms=${dna.atoms.length}`);
+console.log(
+  `  water=${PRESETS[0].atoms.length} caffeine=${PRESETS[1].atoms.length}` +
+    ` dopamine=${PRESETS[2].atoms.length} serotonin=${PRESETS[3].atoms.length} dnaAtoms=${dna.atoms.length}`,
+);

@@ -63,6 +63,9 @@ export class BodySystem {
   private sunScene = new THREE.Vector3(0, 0, 0);
   private sunLight: THREE.PointLight | null = null;
   private tmp = new THREE.Vector3();
+  /** 小行星带逻辑坐标（日心 AU），渲染时扣 FO */
+  private asteroidLogical: Float32Array | null = null;
+  private asteroidBelt: THREE.Points | null = null;
 
   constructor(
     scene: THREE.Scene,
@@ -73,6 +76,7 @@ export class BodySystem {
       this.logical.set(def.id, new THREE.Vector3());
       this.meshes.set(def.id, this.createBody(def));
     }
+    this.createAsteroidBelt();
   }
 
   /** 点光跟随太阳网格；FO 重设后也要同步 */
@@ -84,6 +88,60 @@ export class BodySystem {
   private syncSunLight() {
     this.getWorldPos('sun', this.sunScene);
     if (this.sunLight) this.sunLight.position.copy(this.sunScene);
+  }
+
+  /** 火星–木星之间主带（约 2.1–3.3 AU） */
+  private createAsteroidBelt() {
+    const N = 3200;
+    this.asteroidLogical = new Float32Array(N * 3);
+    const colors = new Float32Array(N * 3);
+    let s = 314159;
+    const rnd = () => {
+      s = (s * 16807) % 2147483647;
+      return (s - 1) / 2147483646;
+    };
+    for (let i = 0; i < N; i++) {
+      const r = 2.1 + rnd() * 1.2;
+      const a = rnd() * Math.PI * 2;
+      const y = (rnd() - 0.5) * 0.06 * r;
+      this.asteroidLogical[i * 3] = Math.cos(a) * r;
+      this.asteroidLogical[i * 3 + 1] = y;
+      this.asteroidLogical[i * 3 + 2] = Math.sin(a) * r;
+      const warm = 0.55 + rnd() * 0.45;
+      colors[i * 3] = 0.55 * warm;
+      colors[i * 3 + 1] = 0.48 * warm;
+      colors[i * 3 + 2] = 0.4 * warm;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const mat = new THREE.PointsMaterial({
+      size: 0.012,
+      sizeAttenuation: true,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+    });
+    this.asteroidBelt = new THREE.Points(geo, mat);
+    this.asteroidBelt.frustumCulled = false;
+    this.root.add(this.asteroidBelt);
+    this.syncAsteroidBelt();
+  }
+
+  private syncAsteroidBelt() {
+    if (!this.asteroidBelt || !this.asteroidLogical) return;
+    const pos = this.asteroidBelt.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const ox = this.floatingOrigin.x;
+    const oy = this.floatingOrigin.y;
+    const oz = this.floatingOrigin.z;
+    const src = this.asteroidLogical;
+    for (let i = 0; i < src.length; i += 3) {
+      pos.array[i] = src[i] - ox;
+      pos.array[i + 1] = src[i + 1] - oy;
+      pos.array[i + 2] = src[i + 2] - oz;
+    }
+    pos.needsUpdate = true;
   }
 
   private mapFor(id: BodyId): THREE.Texture | null {
@@ -278,6 +336,7 @@ export class BodySystem {
     this.floatingOrigin.copy(next);
     for (const def of BODIES) this.applyLocal(def.id);
     this.syncSunLight();
+    this.syncAsteroidBelt();
     // 仅行星日心轨道需补偿 FO；卫星环挂在父星下，跟着走
     for (const [id, line] of this.orbitLines) {
       const def = BODY_BY_ID[id as BodyId];
@@ -336,6 +395,7 @@ export class BodySystem {
   setRootVisible(v: boolean) {
     this.root.visible = v;
     for (const line of this.orbitLines.values()) line.visible = v && this.orbitVisible;
+    if (this.asteroidBelt) this.asteroidBelt.visible = v;
   }
 
   /** 场景世界坐标（已含 Floating Origin） */

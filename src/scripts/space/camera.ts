@@ -42,11 +42,25 @@ export class CameraController {
   private travelT = 0;
   private travelDur = 1;
   private travelDone: (() => void) | null = null;
-  /** 跃迁分镜：起步停顿 → 加速飞行 → 到达缓停 */
-  private travelPhase: 'hold' | 'move' | 'settle' = 'move';
-  private travelHold = 0;
-  private travelSettle = 0;
+  /**
+   * 跃迁分镜：起飞 → 转向对准 → 加速 → 光跃（不灵不灵）→ 降落接近 → 缓停 → 环绕
+   */
+  private travelPhase:
+    | 'liftoff'
+    | 'turn'
+    | 'boost'
+    | 'warp'
+    | 'arrive'
+    | 'settle'
+    | 'orbit' = 'boost';
+  private travelPhaseT = 0;
+  private travelPhaseDur = 1;
+  private travelLiftFrom = new THREE.Vector3();
+  private travelLiftTo = new THREE.Vector3();
+  private travelOrbitAng = 0;
+  private travelOrbitNeed = Math.PI * 0.55;
   private travelSettlePos = new THREE.Vector3();
+  private travelWarpSeed = 1;
   private baseFov = 58;
   private matLook = new THREE.Matrix4();
 
@@ -206,6 +220,8 @@ export class CameraController {
     this.travelMid.sub(delta);
     this.travelPivotStart.sub(delta);
     this.travelSettlePos.sub(delta);
+    this.travelLiftFrom.sub(delta);
+    this.travelLiftTo.sub(delta);
     this.leaveFrom.sub(delta);
     this.leaveTo.sub(delta);
     this.leaveLook.sub(delta);
@@ -543,8 +559,7 @@ export class CameraController {
     this.travelT = 0;
     const dist = this.travelFrom.distanceTo(endPos);
     this.travelDur = Math.min(7.5, Math.max(2.0, Math.log10(dist + 1) * 2.2 + dist * 0.12));
-    this.travelPhase = 'hold';
-    this.travelHold = 0.35;
+    this.beginCinematicTravel(dist);
 
     this.travelTrail = {
       from: this.travelFrom.clone(),
@@ -560,6 +575,7 @@ export class CameraController {
       // 星域下点行星无效，忽略
       return;
     }
+    if (id == this.focus && this.mode != 'travel' && !this.touring) return;
     this.faceSunHold = false;
     this.travelDomain = 'body';
     this.travelDestId = id;
@@ -620,9 +636,7 @@ export class CameraController {
     this.travelT = 0;
     const dist = this.travelFrom.distanceTo(endPos);
     this.travelDur = Math.min(6.2, Math.max(1.8, Math.log10(dist + 1) * 2.0 + dist * 0.18));
-    this.travelPhase = 'hold';
-    // 游览时缩短停顿，避免跳转/环视之间「愣住」
-    this.travelHold = this.touring ? 0.08 : 0.35;
+    this.beginCinematicTravel(dist);
 
     this.travelTrail = {
       from: this.travelFrom.clone(),
@@ -631,6 +645,25 @@ export class CameraController {
       progress: 0,
     };
     this.travelDone = onDone || null;
+  }
+
+  /** 启动起飞→光跃→环绕分镜 */
+  private beginCinematicTravel(dist: number) {
+    this.travelLiftFrom.copy(this.travelFrom);
+    // 起飞：沿视线反方向略抬升 + 抬高
+    const lift = this.touring
+      ? Math.min(0.08, dist * 0.04 + 0.01)
+      : Math.min(this.scaleMode == 'stellar' ? 1.2 : 0.35, Math.max(0.02, dist * 0.06 + 0.015));
+    this.travelLiftTo
+      .copy(this.travelFrom)
+      .addScaledVector(this.travelViewDir, lift * 0.35)
+      .y += lift;
+    this.travelPhase = 'liftoff';
+    this.travelPhaseT = 0;
+    this.travelPhaseDur = this.touring ? 0.22 : 0.55;
+    this.travelWarpSeed = (Date.now() % 100000) + 1;
+    this.travelOrbitAng = 0;
+    this.travelOrbitNeed = this.touring ? Math.PI * 0.35 : Math.PI * 0.65;
   }
 
   private syncOrbitFromCamera() {
@@ -661,7 +694,7 @@ export class CameraController {
     const done = this.travelDone;
     this.travelDone = null;
     this.travelTrail = null;
-    this.travelPhase = 'move';
+    this.travelPhase = 'boost';
     this.resetFov();
 
     if (this.travelDomain == 'star') {
@@ -734,47 +767,131 @@ export class CameraController {
       const destPivot = this.destPivot(this.tmp);
       const endPos = this.travelEndPos(destPivot, this.tmp2);
 
-      if (this.travelPhase == 'hold') {
-        this.travelHold -= dt;
-        const breathe = Math.sin((0.35 - this.travelHold) * 14) * 0.35;
-        this.camera.fov = this.baseFov + breathe;
+      if (this.travelPhase == 'liftoff') {
+        this.travelPhaseT += dt / this.travelPhaseDur;
+        const t = easeOutCubic(Math.min(1, this.travelPhaseT));
+        this.camera.position.lerpVectors(this.travelLiftFrom, this.travelLiftTo, t);
+        this.camera.quaternion.copy(this.travelFromQuat);
+        this.camera.fov = this.baseFov + t * 3;
         this.camera.updateProjectionMatrix();
-        if (this.travelHold <= 0) this.travelPhase = 'move';
+        if (this.travelPhaseT >= 1) {
+          this.travelFrom.copy(this.camera.position);
+          this.buildTravelMid(this.travelFrom, endPos, this.travelMid);
+          if (this.travelTrail) {
+            this.travelTrail.from.copy(this.travelFrom);
+            this.travelTrail.mid.copy(this.travelMid);
+          }
+          this.travelPhase = 'turn';
+          this.travelPhaseT = 0;
+          this.travelPhaseDur = this.touring ? 0.35 : 0.75;
+        }
+        return;
+      }
+
+      if (this.travelPhase == 'turn') {
+        this.travelPhaseT += dt / this.travelPhaseDur;
+        const t = easeInOutCubic(Math.min(1, this.travelPhaseT));
+        // 转向并对准目标
+        this.slerpLookAt(this.travelFromQuat, this.camera.position, destPivot, t);
+        this.camera.fov = this.baseFov + Math.sin(t * Math.PI) * 2;
+        this.camera.updateProjectionMatrix();
+        if (this.travelPhaseT >= 1) {
+          this.travelFromQuat.copy(this.camera.quaternion);
+          this.travelPhase = 'boost';
+          this.travelPhaseT = 0;
+          this.travelT = 0;
+        }
         return;
       }
 
       if (this.travelPhase == 'settle') {
-        this.travelSettle -= dt;
-        const st = 1 - Math.max(0, this.travelSettle) / 1.0;
-        const ease = easeOutCubic(st);
+        this.travelPhaseT += dt / this.travelPhaseDur;
+        const ease = easeOutCubic(Math.min(1, this.travelPhaseT));
         this.camera.position.lerpVectors(this.travelSettlePos, endPos, ease);
         this.camera.lookAt(destPivot);
-        this.camera.fov = this.baseFov + (1 - ease) * 2;
+        this.camera.fov = this.baseFov + (1 - ease) * 3;
         this.camera.updateProjectionMatrix();
-        if (this.travelSettle <= 0) this.finishTravel();
+        if (this.travelPhaseT >= 1) {
+          // 缓慢环绕：从落点方位角开始转一小段
+          const off = this.tmp3.copy(this.camera.position).sub(destPivot);
+          this.travelOrbitAng = Math.atan2(off.z, off.x);
+          this.tourRadiusFrom = Math.max(Math.hypot(off.x, off.z), 1e-5);
+          this.tourHeightFrom = off.y;
+          this.travelPhase = 'orbit';
+          this.travelPhaseT = 0;
+        }
         return;
       }
 
+      if (this.travelPhase == 'orbit') {
+        const spinSpeed = (Math.PI * 2) / (this.touring ? 5 : 7);
+        this.travelOrbitAng += spinSpeed * dt;
+        this.travelPhaseT += spinSpeed * dt;
+        const r = this.tourRadiusFrom;
+        const h = this.tourHeightFrom;
+        this.camera.position.set(
+          destPivot.x + Math.cos(this.travelOrbitAng) * r,
+          destPivot.y + h,
+          destPivot.z + Math.sin(this.travelOrbitAng) * r,
+        );
+        this.camera.lookAt(destPivot);
+        this.camera.fov = this.baseFov;
+        this.camera.updateProjectionMatrix();
+        if (this.travelPhaseT >= this.travelOrbitNeed) this.finishTravel();
+        return;
+      }
+
+      // boost / warp / arrive：沿贝塞尔弧线分段
       this.travelT += dt / this.travelDur;
-      const t = easeCinematic(Math.min(1, this.travelT));
-      const pos = quadBezier(this.travelFrom, this.travelMid, endPos, t);
+      const raw = Math.min(1, this.travelT);
+
+      // 分段映射：0–0.28 boost，0.28–0.62 warp，0.62–1 arrive
+      let pathT: number;
+      let fovExtra = 0;
+      if (raw < 0.28) {
+        this.travelPhase = 'boost';
+        const u = raw / 0.28;
+        pathT = easeInOutCubic(u) * 0.28;
+        fovExtra = u * 8;
+      } else if (raw < 0.62) {
+        this.travelPhase = 'warp';
+        const u = (raw - 0.28) / 0.34;
+        // 不灵不灵：路径偶发微跳 + FOV 闪烁
+        pathT = 0.28 + easeCinematic(u) * 0.34;
+        this.travelWarpSeed = (this.travelWarpSeed * 1103515245 + 12345) & 0x7fffffff;
+        const glitch = ((this.travelWarpSeed % 1000) / 1000 - 0.5) * 0.035 * (this.scaleMode == 'stellar' ? 2 : 1);
+        pathT = Math.max(0.28, Math.min(0.62, pathT + glitch));
+        fovExtra = 14 + Math.sin(raw * 40) * 6 + ((this.travelWarpSeed % 7) - 3);
+      } else {
+        this.travelPhase = 'arrive';
+        const u = (raw - 0.62) / 0.38;
+        pathT = 0.62 + easeOutCubic(u) * 0.38;
+        fovExtra = (1 - u) * 10;
+      }
+
+      const pos = quadBezier(this.travelFrom, this.travelMid, endPos, pathT);
+      if (this.travelPhase == 'warp') {
+        // 横向微抖
+        this.travelWarpSeed = (this.travelWarpSeed * 16807) % 2147483647;
+        const j = ((this.travelWarpSeed % 200) / 200 - 0.5) * 0.02;
+        pos.x += j;
+        pos.y += j * 0.4;
+      }
       this.camera.position.copy(pos);
+      this.camera.lookAt(destPivot);
 
-      const lookT = smoothstep(0.08, 0.82, t);
-      this.slerpLookAt(this.travelFromQuat, pos, destPivot, lookT);
-
-      const fovWave = Math.sin(t * Math.PI);
-      this.camera.fov = this.baseFov + fovWave * 4;
+      this.camera.fov = this.baseFov + fovExtra;
       this.camera.updateProjectionMatrix();
 
       if (this.travelTrail) {
-        this.travelTrail.progress = t;
+        this.travelTrail.progress = pathT;
         this.travelTrail.to.copy(endPos);
       }
 
       if (this.travelT >= 1) {
         this.travelPhase = 'settle';
-        this.travelSettle = this.touring ? 0.32 : 0.85;
+        this.travelPhaseT = 0;
+        this.travelPhaseDur = this.touring ? 0.28 : 0.7;
         this.travelSettlePos.copy(this.camera.position);
       }
       return;
@@ -900,11 +1017,6 @@ function easeCinematic(t: number) {
 
 function easeOutCubic(t: number) {
   return 1 - Math.pow(1 - t, 3);
-}
-
-function smoothstep(e0: number, e1: number, x: number) {
-  const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
-  return t * t * (3 - 2 * t);
 }
 
 const UP = new THREE.Vector3(0, 1, 0);

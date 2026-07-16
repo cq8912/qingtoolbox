@@ -67,6 +67,9 @@ export function bootSpace() {
   const gotoBody = (id: BodyId) => {
     if (!sceneReady) return;
     if (cam.scaleMode != 'solar') return;
+    // 已在看这颗星：再点不跳转
+    if (id == cam.focus && cam.mode != 'travel') return;
+    if (cam.mode == 'travel' && cam.travelDestId == id) return;
     cam.stopTour();
     state.touring = false;
     cam.travelTo(id);
@@ -78,6 +81,8 @@ export function bootSpace() {
 
   const gotoStar = (id: StarId) => {
     if (!sceneReady) return;
+    if (id == cam.starFocus && cam.mode != 'travel' && cam.scaleMode == 'stellar') return;
+    if (cam.mode == 'travel' && cam.travelDestStar == id && cam.scaleMode == 'stellar') return;
     cam.stopTour();
     state.touring = false;
     cam.travelToStar(id);

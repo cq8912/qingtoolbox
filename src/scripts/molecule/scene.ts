@@ -95,7 +95,10 @@ export function createMolScene(canvas: HTMLCanvasElement): MolScene {
     }
 
     root.position.set(0, 0, 0);
-    const scale = mol.id == 'water' ? 1.8 : mol.id == 'caffeine' ? 1.15 : 1;
+    const scale =
+      mol.id == 'water' ? 1.8 :
+      mol.id == 'caffeine' || mol.id == 'dopamine' || mol.id == 'serotonin' ? 1.15 :
+      1;
 
     for (const atom of mol.atoms) {
       const geo = new THREE.SphereGeometry(ELEMENT_RADIUS[atom.el] * scale, 28, 22);
