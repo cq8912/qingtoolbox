@@ -9,10 +9,13 @@ import type { TravelTrail } from './minimap';
 import type { StarSystem, StarId } from './stars';
 import { STAR_BY_ID } from './stars';
 import { applyScaleVisibility, type ScaleMode } from './scale';
+import type { CometSystem } from './cometSystem';
+import type { CometId } from './comets';
+import { COMET_BY_ID } from './comets';
 
 export type CamMode = 'observe' | 'fly' | 'travel' | 'tour' | 'facesun';
 
-type TravelDomain = 'body' | 'star';
+type TravelDomain = 'body' | 'star' | 'comet';
 
 export class CameraController {
   mode: CamMode = 'observe';
@@ -26,7 +29,9 @@ export class CameraController {
   /** 跃迁目标（飞行过程中 focus 不变，避免逻辑错乱） */
   travelDestId: BodyId = 'earth';
   travelDestStar: StarId = 'sirius';
-  private travelDomain: TravelDomain = 'body';
+  travelDestComet: CometId = 'halley';
+  cometFocus: CometId | null = null;
+  travelDomain: TravelDomain = 'body';
 
   private orbit: OrbitControls;
   private keys = new Set<string>();
@@ -60,7 +65,6 @@ export class CameraController {
   private travelOrbitAng = 0;
   private travelOrbitNeed = Math.PI * 0.55;
   private travelSettlePos = new THREE.Vector3();
-  private travelWarpSeed = 1;
   private baseFov = 58;
   private matLook = new THREE.Matrix4();
 
@@ -105,6 +109,7 @@ export class CameraController {
     canvas: HTMLCanvasElement,
     private bodies: BodySystem,
     private stars: StarSystem,
+    private comets: CometSystem,
     private onScaleChange?: (mode: ScaleMode) => void,
   ) {
     this.orbit = new OrbitControls(camera, canvas);
@@ -267,20 +272,38 @@ export class CameraController {
   }
 
   private travelEndPos(destPivot: THREE.Vector3, out: THREE.Vector3) {
+    if (this.travelDomain == 'comet') {
+      // 从彗尾后方看向彗核
+      this.comets.antiSunDir(this.travelDestComet, this.tmp3);
+      const dist = Math.max(this.travelViewDist, 0.08);
+      return out.copy(destPivot).addScaledVector(this.tmp3, dist);
+    }
     return out.copy(destPivot).addScaledVector(this.travelViewDir, this.travelViewDist);
   }
 
   private destPivot(out: THREE.Vector3): THREE.Vector3 {
     if (this.travelDomain == 'star') return this.stars.getWorldPos(this.travelDestStar, out);
+    if (this.travelDomain == 'comet') return this.comets.getWorldPos(this.travelDestComet, out);
     return this.bodies.getWorldPos(this.travelDestId, out);
   }
 
   getAdaptiveSpeedAu(): number {
+    // 巡航：按日心距离自适应，便于小行星带遨游
+    if (this.mode == 'fly' && this.scaleMode == 'solar') {
+      this.tmp.copy(this.camera.position).add(this.bodies.floatingOrigin);
+      const r = Math.max(this.tmp.length(), 0.05);
+      return Math.max(r * 0.22, 0.025) * this.speedMult;
+    }
     if (this.scaleMode == 'stellar') {
       const id = this.mode == 'travel' ? this.travelDestStar : this.starFocus;
       const def = STAR_BY_ID[id];
       const dist = this.camera.position.distanceTo(this.stars.getWorldPos(id, this.tmp));
       const base = Math.max(dist * 0.55, (def?.visualRadius || 0.05) * 35, 0.02);
+      return base * this.speedMult;
+    }
+    if (this.cometFocus) {
+      const dist = this.camera.position.distanceTo(this.comets.getWorldPos(this.cometFocus, this.tmp));
+      const base = Math.max(dist * 0.55, 0.02);
       return base * this.speedMult;
     }
     const def = this.bodies.getDef(this.focus);
@@ -426,6 +449,7 @@ export class CameraController {
     }
     this.stopTour();
     this.faceSunHold = false;
+    this.cometFocus = null;
     this.returningToSol = false;
     this.travelDone = onDone || null;
 
@@ -476,6 +500,7 @@ export class CameraController {
     this.crossPhase = null;
 
     applyScaleVisibility('stellar', this.bodies, this.stars);
+    this.comets.setRootVisible(false);
     this.scaleMode = 'stellar';
     this.onScaleChange?.('stellar');
 
@@ -500,11 +525,13 @@ export class CameraController {
     this.returningToSol = false;
 
     applyScaleVisibility('solar', this.bodies, this.stars);
+    this.comets.setRootVisible(true);
     this.scaleMode = 'solar';
     this.onScaleChange?.('solar');
 
     this.bodies.getLogicalPos('earth', this.tmp);
     this.bodies.setFloatingOrigin(this.tmp);
+    this.comets.syncOrigin(this.bodies.floatingOrigin);
     this.stars.setFloatingOrigin(this.tmp3.set(0, 0, 0));
 
     this.focus = 'earth';
@@ -569,13 +596,48 @@ export class CameraController {
     };
   }
 
-  /** 从当前位置/视角/相对偏移，弧线飞往目标天体 */
+  /** 跃迁到彗星，落点在彗尾后方朝向彗核 */
+  travelToComet(id: CometId, onDone?: () => void) {
+    if (this.scaleMode != 'solar') return;
+    if (this.cometFocus == id && this.mode != 'travel') return;
+    this.stopTour();
+    this.faceSunHold = false;
+    this.cometFocus = id;
+    this.travelDomain = 'comet';
+    this.travelDestComet = id;
+    this.mode = 'travel';
+    this.orbit.enabled = false;
+
+    this.travelFrom.copy(this.camera.position);
+    this.travelPivotStart.copy(this.orbit.target);
+    this.travelFromQuat.copy(this.camera.quaternion);
+    this.travelViewDist = Math.max(COMET_BY_ID[id].visualRadius * 28, 0.12);
+    this.travelViewDir.set(0.5, 0.25, 1).normalize();
+
+    const dest = this.comets.getWorldPos(id, this.tmp);
+    const endPos = this.travelEndPos(dest, this.tmp2);
+    this.buildTravelMid(this.travelFrom, endPos, this.travelMid);
+
+    this.travelT = 0;
+    const dist = this.travelFrom.distanceTo(endPos);
+    this.travelDur = Math.min(6.5, Math.max(2.2, Math.log10(dist + 1) * 2.1 + dist * 0.16));
+    this.beginCinematicTravel(dist);
+    this.travelDone = onDone || null;
+    this.travelTrail = {
+      from: this.travelFrom.clone(),
+      mid: this.travelMid.clone(),
+      to: endPos.clone(),
+      progress: 0,
+    };
+  }
+
   travelTo(id: BodyId, onDone?: () => void) {
     if (this.scaleMode != 'solar') {
       // 星域下点行星无效，忽略
       return;
     }
-    if (id == this.focus && this.mode != 'travel' && !this.touring) return;
+    if (id == this.focus && this.mode != 'travel' && !this.touring && !this.cometFocus) return;
+    this.cometFocus = null;
     this.faceSunHold = false;
     this.travelDomain = 'body';
     this.travelDestId = id;
@@ -661,7 +723,6 @@ export class CameraController {
     this.travelPhase = 'liftoff';
     this.travelPhaseT = 0;
     this.travelPhaseDur = this.touring ? 0.22 : 0.55;
-    this.travelWarpSeed = (Date.now() % 100000) + 1;
     this.travelOrbitAng = 0;
     this.travelOrbitNeed = this.touring ? Math.PI * 0.35 : Math.PI * 0.65;
   }
@@ -708,6 +769,17 @@ export class CameraController {
       this.stars.getWorldPos(this.travelDestStar, this.tmp);
       this.orbit.target.copy(this.tmp);
       this.orbit.minDistance = Math.max(STAR_BY_ID[this.travelDestStar].visualRadius * 8, 0.45);
+      done?.();
+      return;
+    }
+
+    if (this.travelDomain == 'comet') {
+      this.cometFocus = this.travelDestComet;
+      this.mode = 'observe';
+      this.orbit.enabled = true;
+      this.comets.getWorldPos(this.travelDestComet, this.tmp);
+      this.orbit.target.copy(this.tmp);
+      this.orbit.minDistance = Math.max(COMET_BY_ID[this.travelDestComet].visualRadius * 4, 0.02);
       done?.();
       return;
     }
@@ -841,42 +913,31 @@ export class CameraController {
         return;
       }
 
-      // boost / warp / arrive：沿贝塞尔弧线分段
+      // boost / warp / arrive：沿贝塞尔弧线平滑分段（无位置硬抖）
       this.travelT += dt / this.travelDur;
       const raw = Math.min(1, this.travelT);
 
-      // 分段映射：0–0.28 boost，0.28–0.62 warp，0.62–1 arrive
       let pathT: number;
       let fovExtra = 0;
-      if (raw < 0.28) {
+      if (raw < 0.3) {
         this.travelPhase = 'boost';
-        const u = raw / 0.28;
-        pathT = easeInOutCubic(u) * 0.28;
-        fovExtra = u * 8;
+        const u = raw / 0.3;
+        pathT = easeInOutCubic(u) * 0.3;
+        fovExtra = u * 6;
       } else if (raw < 0.62) {
         this.travelPhase = 'warp';
-        const u = (raw - 0.28) / 0.34;
-        // 不灵不灵：路径偶发微跳 + FOV 闪烁
-        pathT = 0.28 + easeCinematic(u) * 0.34;
-        this.travelWarpSeed = (this.travelWarpSeed * 1103515245 + 12345) & 0x7fffffff;
-        const glitch = ((this.travelWarpSeed % 1000) / 1000 - 0.5) * 0.035 * (this.scaleMode == 'stellar' ? 2 : 1);
-        pathT = Math.max(0.28, Math.min(0.62, pathT + glitch));
-        fovExtra = 14 + Math.sin(raw * 40) * 6 + ((this.travelWarpSeed % 7) - 3);
+        const u = (raw - 0.3) / 0.32;
+        // 「接近光速」感：平滑加速曲线 + FOV 呼吸，不用位置抖动
+        pathT = 0.3 + easeCinematic(u) * 0.32;
+        fovExtra = 8 + Math.sin(u * Math.PI) * 7;
       } else {
         this.travelPhase = 'arrive';
         const u = (raw - 0.62) / 0.38;
         pathT = 0.62 + easeOutCubic(u) * 0.38;
-        fovExtra = (1 - u) * 10;
+        fovExtra = (1 - u) * 8;
       }
 
       const pos = quadBezier(this.travelFrom, this.travelMid, endPos, pathT);
-      if (this.travelPhase == 'warp') {
-        // 横向微抖
-        this.travelWarpSeed = (this.travelWarpSeed * 16807) % 2147483647;
-        const j = ((this.travelWarpSeed % 200) / 200 - 0.5) * 0.02;
-        pos.x += j;
-        pos.y += j * 0.4;
-      }
       this.camera.position.copy(pos);
       this.camera.lookAt(destPivot);
 
@@ -891,7 +952,7 @@ export class CameraController {
       if (this.travelT >= 1) {
         this.travelPhase = 'settle';
         this.travelPhaseT = 0;
-        this.travelPhaseDur = this.touring ? 0.28 : 0.7;
+        this.travelPhaseDur = this.touring ? 0.28 : 0.55;
         this.travelSettlePos.copy(this.camera.position);
       }
       return;
@@ -930,6 +991,16 @@ export class CameraController {
 
       if (this.scaleMode == 'stellar') {
         this.stars.getWorldPos(this.starFocus, this.tmp);
+        this.tmp2.copy(this.camera.position).sub(this.orbit.target);
+        this.orbit.target.copy(this.tmp);
+        this.camera.position.copy(this.tmp).add(this.tmp2);
+        this.orbit.update();
+        return;
+      }
+
+      // 跟随彗星
+      if (this.cometFocus) {
+        this.comets.getWorldPos(this.cometFocus, this.tmp);
         this.tmp2.copy(this.camera.position).sub(this.orbit.target);
         this.orbit.target.copy(this.tmp);
         this.camera.position.copy(this.tmp).add(this.tmp2);

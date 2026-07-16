@@ -2,6 +2,7 @@
 import { BODIES } from '../../scripts/space/constants';
 import { SPEED_PRESETS, TIME_PRESETS } from '../../scripts/space/constants';
 import { DEST_STARS } from '../../scripts/space/starCatalog';
+import { COMETS } from '../../scripts/space/comets';
 
 const TEX: Record<string, string> = {
   sun: '/space/textures/2k_sun.jpg',
@@ -93,7 +94,8 @@ const moonsOf = (id: string) => BODIES.filter((b) => b.moonOf == id);
       #space-hud .sp-drawer,
       #space-hud .sp-minimap-wrap,
       #space-hud .sp-moon-chip,
-      #space-hud .sp-star-pick {
+      #space-hud .sp-star-pick,
+      #space-hud .sp-pick {
         pointer-events: auto;
         cursor: pointer;
       }
@@ -453,11 +455,14 @@ const moonsOf = (id: string) => BODIES.filter((b) => b.moonOf == id);
       }
       .sp-label-name {
         font-size: 0.62rem;
+        color: inherit;
       }
       .sp-label-dist {
-        font-size: 0.5rem;
-        letter-spacing: 0.08em;
-        opacity: 0.75;
+        font-size: 0.42rem;
+        letter-spacing: 0.06em;
+        opacity: 0.45;
+        color: rgba(160, 200, 220, 0.55);
+        font-weight: 400;
       }
       .sp-label.is-focus {
         color: rgba(0, 232, 255, 0.88);
@@ -466,12 +471,20 @@ const moonsOf = (id: string) => BODIES.filter((b) => b.moonOf == id);
       .sp-label.is-focus .sp-label-name {
         letter-spacing: 0.2em;
       }
+      .sp-label.is-focus .sp-label-dist {
+        opacity: 0.5;
+        color: rgba(0, 232, 255, 0.45);
+      }
       .sp-label.is-dim {
         opacity: 0.55;
       }
       .sp-label.is-dim .sp-label-name {
         font-size: 0.55rem;
         letter-spacing: 0.1em;
+      }
+      .sp-label.is-dim .sp-label-dist {
+        font-size: 0.38rem;
+        opacity: 0.4;
       }
 
       /* 底部抽屉：默认展开，点标签折叠 */
@@ -663,6 +676,19 @@ const moonsOf = (id: string) => BODIES.filter((b) => b.moonOf == id);
                 )}
               </div>
             ))}
+            <div class="sp-rail-label sp-muted" style="margin-top:8px">彗星</div>
+            {COMETS.map((c) => (
+              <button
+                type="button"
+                class="sp-pick"
+                data-goto-comet={c.id}
+                data-comet={c.id}
+                title={`${c.name} · 公开轨道根数`}
+              >
+                <span class="sp-thumb-swatch" style={`background:#${c.color.toString(16).padStart(6, '0')}`} />
+                <span class="sp-name sp-muted">{c.name}</span>
+              </button>
+            ))}
           </nav>
           <nav id="sp-rail-stars" aria-label="邻近恒星">
             {DEST_STARS.map((s) => (
@@ -687,7 +713,7 @@ const moonsOf = (id: string) => BODIES.filter((b) => b.moonOf == id);
         <div class="sp-drawer-body sp-dock">
           <div class="sp-seg">
             <button type="button" data-mode="observe" class="sp-muted is-on">观察</button>
-            <button type="button" data-mode="fly" class="sp-muted">巡航</button>
+            <button type="button" data-mode="fly" class="sp-muted" title="WASD 自由飞行，可进小行星带">巡航</button>
           </div>
           <button type="button" class="sp-btn sp-muted" id="sp-face-sun">面向太阳</button>
           <label class="sp-field sp-muted">时间

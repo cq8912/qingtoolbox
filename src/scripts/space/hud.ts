@@ -3,6 +3,7 @@ import { formatSpeed, type CameraController, type CamMode } from './camera';
 import type { ScaleMode } from './scale';
 import type { StarId } from './stars';
 import { STAR_BY_ID } from './stars';
+import type { CometId } from './comets';
 
 export interface HudState {
   simDate: Date;
@@ -23,6 +24,7 @@ export class Hud {
   private root: HTMLElement;
   private onGoto: (id: BodyId) => void;
   private onGotoStar: (id: StarId) => void;
+  private onGotoComet: (id: CometId) => void;
   private onReturnSol: () => void;
   private onChange: (patch: Partial<HudState>) => void;
   private onTour: () => void;
@@ -35,6 +37,7 @@ export class Hud {
     handlers: {
       onGoto: (id: BodyId) => void;
       onGotoStar: (id: StarId) => void;
+      onGotoComet: (id: CometId) => void;
       onReturnSol: () => void;
       onChange: (patch: Partial<HudState>) => void;
       onTour: () => void;
@@ -44,6 +47,7 @@ export class Hud {
     this.root = root;
     this.onGoto = handlers.onGoto;
     this.onGotoStar = handlers.onGotoStar;
+    this.onGotoComet = handlers.onGotoComet;
     this.onReturnSol = handlers.onReturnSol;
     this.onChange = handlers.onChange;
     this.onTour = handlers.onTour;
@@ -82,6 +86,12 @@ export class Hud {
     this.root.querySelectorAll('[data-goto-star]').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.onGotoStar((btn as HTMLElement).dataset.gotoStar as StarId);
+      });
+    });
+
+    this.root.querySelectorAll('[data-goto-comet]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.onGotoComet((btn as HTMLElement).dataset.gotoComet as CometId);
       });
     });
 

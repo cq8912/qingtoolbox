@@ -66,6 +66,7 @@ export class BodySystem {
   /** 小行星带逻辑坐标（日心 AU），渲染时扣 FO */
   private asteroidLogical: Float32Array | null = null;
   private asteroidBelt: THREE.Points | null = null;
+  private asteroidRocks: THREE.Mesh[] = [];
 
   constructor(
     scene: THREE.Scene,
@@ -90,9 +91,9 @@ export class BodySystem {
     if (this.sunLight) this.sunLight.position.copy(this.sunScene);
   }
 
-  /** 火星–木星之间主带（约 2.1–3.3 AU） */
+  /** 火星–木星之间主带（约 2.1–3.3 AU）+ 近距大石块 */
   private createAsteroidBelt() {
-    const N = 3200;
+    const N = 1400;
     this.asteroidLogical = new Float32Array(N * 3);
     const colors = new Float32Array(N * 3);
     let s = 314159;
@@ -116,16 +117,37 @@ export class BodySystem {
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     const mat = new THREE.PointsMaterial({
-      size: 0.012,
+      size: 0.02,
       sizeAttenuation: true,
       vertexColors: true,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.9,
       depthWrite: false,
     });
     this.asteroidBelt = new THREE.Points(geo, mat);
     this.asteroidBelt.frustumCulled = false;
     this.root.add(this.asteroidBelt);
+
+    // 几十块稍大的「陨石」便于巡航贴近观看
+    const rockGeo = new THREE.IcosahedronGeometry(1, 0);
+    const rockMat = new THREE.MeshStandardMaterial({
+      color: 0x8a7a68,
+      roughness: 0.9,
+      metalness: 0.05,
+      flatShading: true,
+    });
+    for (let i = 0; i < 48; i++) {
+      const r = 2.15 + rnd() * 1.1;
+      const a = rnd() * Math.PI * 2;
+      const y = (rnd() - 0.5) * 0.05 * r;
+      const mesh = new THREE.Mesh(rockGeo, rockMat);
+      const scale = 0.004 + rnd() * 0.01;
+      mesh.scale.setScalar(scale);
+      mesh.rotation.set(rnd() * 6, rnd() * 6, rnd() * 6);
+      mesh.userData.logical = new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
+      this.asteroidRocks.push(mesh);
+      this.root.add(mesh);
+    }
     this.syncAsteroidBelt();
   }
 
@@ -142,6 +164,10 @@ export class BodySystem {
       pos.array[i + 2] = src[i + 2] - oz;
     }
     pos.needsUpdate = true;
+    for (const rock of this.asteroidRocks) {
+      const L = rock.userData.logical as THREE.Vector3;
+      rock.position.set(L.x - ox, L.y - oy, L.z - oz);
+    }
   }
 
   private mapFor(id: BodyId): THREE.Texture | null {

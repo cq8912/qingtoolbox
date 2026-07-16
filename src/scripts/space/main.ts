@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import { createScene } from './scene';
 import { BodySystem } from './bodies';
 import { StarSystem } from './stars';
+import { CometSystem } from './cometSystem';
 import { CameraController, formatSpeed } from './camera';
 import { Hud, describeFocus, describeStarFocus, type HudState } from './hud';
 import { Minimap } from './minimap';
 import { BodyLabels } from './labels';
 import { ScenePicker } from './pick';
 import { BODIES, BODY_BY_ID, type BodyId } from './constants';
+import { COMETS, type CometId } from './comets';
 import { selfCheckEarthDistance, selfCheckSatellites } from './astronomy';
 import { selfCheckStars } from './stars-check';
 import { loadSpaceTextures } from './textures';
@@ -47,6 +49,7 @@ export function bootSpace() {
   let cam!: CameraController;
   let bodies!: BodySystem;
   let stars!: StarSystem;
+  let comets!: CometSystem;
   let camera!: THREE.PerspectiveCamera;
   let minimap: Minimap | null = null;
   let labels: BodyLabels | null = null;
@@ -68,7 +71,7 @@ export function bootSpace() {
     if (!sceneReady) return;
     if (cam.scaleMode != 'solar') return;
     // 已在看这颗星：再点不跳转
-    if (id == cam.focus && cam.mode != 'travel') return;
+    if (id == cam.focus && cam.mode != 'travel' && !cam.cometFocus) return;
     if (cam.mode == 'travel' && cam.travelDestId == id) return;
     cam.stopTour();
     state.touring = false;
@@ -93,6 +96,21 @@ export function bootSpace() {
     hud.render();
   };
 
+  const gotoComet = (id: CometId) => {
+    if (!sceneReady) return;
+    if (cam.cometFocus == id && cam.mode != 'travel') return;
+    cam.stopTour();
+    state.touring = false;
+    if (cam.scaleMode != 'solar') {
+      cam.returnToSol(() => cam.travelToComet(id));
+    } else {
+      cam.travelToComet(id);
+    }
+    state.mode = cam.mode;
+    rebuildInfo();
+    hud.render();
+  };
+
   const returnSol = () => {
     if (!sceneReady) return;
     cam.returnToSol();
@@ -111,6 +129,7 @@ export function bootSpace() {
   const hud = new Hud(hudRoot, () => state, {
     onGoto: gotoBody,
     onGotoStar: gotoStar,
+    onGotoComet: gotoComet,
     onReturnSol: returnSol,
     onTour: () => {
       if (!sceneReady) return;
@@ -164,6 +183,32 @@ export function bootSpace() {
       return;
     }
 
+    // 巡航：以相机为原点，可自由穿小行星带
+    if (cam.mode == 'fly') {
+      foTarget.copy(bodies.floatingOrigin).add(camera.position);
+      if (camera.position.length() < FO_REBASE_SOLAR * 0.85) {
+        comets.syncOrigin(bodies.floatingOrigin);
+        return;
+      }
+      const delta = bodies.setFloatingOrigin(foTarget);
+      comets.syncOrigin(bodies.floatingOrigin);
+      cam.applyOriginShift(delta);
+      return;
+    }
+
+    if (cam.cometFocus || (cam.mode == 'travel' && cam.travelDomain == 'comet')) {
+      const cid = cam.mode == 'travel' ? cam.travelDestComet : cam.cometFocus!;
+      comets.getLogicalPos(cid, foTarget);
+      const need =
+        camera.position.length() > FO_REBASE_SOLAR ||
+        bodies.floatingOrigin.distanceTo(foTarget) > FO_REBASE_SOLAR;
+      if (!need) return;
+      const delta = bodies.setFloatingOrigin(foTarget);
+      comets.syncOrigin(bodies.floatingOrigin);
+      cam.applyOriginShift(delta);
+      return;
+    }
+
     const fid = cam.mode == 'travel' ? cam.travelDestId : cam.focus;
     bodies.getLogicalPos(fid, foTarget);
     const need =
@@ -171,6 +216,7 @@ export function bootSpace() {
       bodies.floatingOrigin.distanceTo(foTarget) > FO_REBASE_SOLAR;
     if (!need) return;
     const delta = bodies.setFloatingOrigin(foTarget);
+    comets.syncOrigin(bodies.floatingOrigin);
     cam.applyOriginShift(delta);
   }
 
@@ -181,11 +227,19 @@ export function bootSpace() {
       const target = stars.getWorldPos(sid, tmp);
       state.info = describeStarFocus(camera.position.distanceTo(target), sid);
       state.speedText = formatSpeed(cam.currentSpeedAu || cam.getAdaptiveSpeedAu(), true);
+    } else if (cam.cometFocus || (cam.mode == 'travel' && cam.travelDomain == 'comet')) {
+      const cid = cam.mode == 'travel' ? cam.travelDestComet : cam.cometFocus!;
+      const def = comets.getDef(cid);
+      const target = comets.getWorldPos(cid, tmp);
+      state.info = `${def.name} · 沿彗尾视角 · WASD 巡航可自由飞`;
+      state.speedText = formatSpeed(cam.currentSpeedAu || cam.getAdaptiveSpeedAu(), false);
+      void target;
     } else {
       const fid = cam.mode == 'travel' ? cam.travelDestId : cam.focus;
       const def = BODY_BY_ID[fid];
       const target = bodies.getWorldPos(fid, tmp);
-      state.info = describeFocus(cam, camera.position.distanceTo(target), def.name);
+      const flyHint = cam.mode == 'fly' ? ' · 巡航中（WASD 遨游）' : '';
+      state.info = describeFocus(cam, camera.position.distanceTo(target), def.name) + flyHint;
       state.speedText = formatSpeed(cam.currentSpeedAu || cam.getAdaptiveSpeedAu(), false);
     }
     state.touring = cam.touring;
@@ -209,13 +263,16 @@ export function bootSpace() {
       camera = pack.camera;
       bodies = new BodySystem(pack.scene, tex);
       bodies.attachSunLight(pack.sunLight);
+      comets = new CometSystem(pack.scene);
       stars = new StarSystem(pack.scene, tex.sun);
       bodies.updatePositions(state.simDate, true);
-      cam = new CameraController(camera, canvas, bodies, stars, onScaleChange);
+      comets.updatePositions(state.simDate);
+      cam = new CameraController(camera, canvas, bodies, stars, comets, onScaleChange);
       cam.setFocus('earth');
       cam.speedMult = state.speedMult;
       bodies.getLogicalPos('earth', foTarget);
       const d0 = bodies.setFloatingOrigin(foTarget);
+      comets.syncOrigin(bodies.floatingOrigin);
       cam.applyOriginShift(d0);
 
       if (miniCanvas) {
@@ -225,7 +282,7 @@ export function bootSpace() {
         window.addEventListener('resize', () => minimap?.resize());
       }
       labels = new BodyLabels(hudRoot);
-      labels.bind(gotoBody, gotoStar);
+      labels.bind(gotoBody, gotoStar, gotoComet);
       new ScenePicker(canvas, camera, () => cam.scaleMode, bodies, stars, gotoBody, gotoStar);
 
       sceneReady = true;
@@ -234,6 +291,8 @@ export function bootSpace() {
 
       let last = performance.now();
       let orbitRebuildAcc = 0;
+      let infoAcc = 0;
+      let mapAcc = 0;
       const t0 = performance.now();
 
       function frame(now: number) {
@@ -245,8 +304,8 @@ export function bootSpace() {
         if (cam.scaleMode == 'solar' && state.timeMult != 0) {
           state.simDate = new Date(state.simDate.getTime() + dt * 1000 * state.timeMult);
           bodies.updatePositions(state.simDate, false);
+          comets.updatePositions(state.simDate);
           orbitRebuildAcc += dt;
-          // 行星椭圆随历元漂移慢；卫星环已挂父星，形状仍随相位变，快进时多刷一点
           const needRebuild =
             (state.timeMult > 1 && orbitRebuildAcc > 2) ||
             (state.timeMult >= 86400 && orbitRebuildAcc > 0.5) ||
@@ -266,14 +325,35 @@ export function bootSpace() {
         rebaseFloatingOrigin();
         state.mode = cam.mode;
         state.scaleMode = cam.scaleMode;
-        state.focus = cam.mode == 'travel' && cam.scaleMode == 'solar' ? cam.travelDestId : cam.focus;
+        state.focus = cam.mode == 'travel' && cam.scaleMode == 'solar' && cam.travelDomain == 'body'
+          ? cam.travelDestId
+          : cam.focus;
         state.starFocus = cam.mode == 'travel' && cam.scaleMode == 'stellar' ? cam.travelDestStar : cam.starFocus;
         state.touring = cam.touring;
-        rebuildInfo();
 
-        minimap?.setScaleMode(cam.scaleMode);
-        minimap?.draw(state.focus, state.starFocus, cam.travelTrail);
-        labels?.update(bodies, stars, camera, cam.scaleMode, state.focus, state.starFocus, canvas!);
+        // 降频：信息条 / 小地图不必每帧写 DOM
+        infoAcc += dt;
+        if (infoAcc > 0.2) {
+          infoAcc = 0;
+          rebuildInfo();
+        }
+        mapAcc += dt;
+        if (mapAcc > 0.1) {
+          mapAcc = 0;
+          minimap?.setScaleMode(cam.scaleMode);
+          minimap?.draw(state.focus, state.starFocus, cam.travelTrail);
+        }
+        labels?.update(
+          bodies,
+          stars,
+          camera,
+          cam.scaleMode,
+          state.focus,
+          state.starFocus,
+          canvas!,
+          comets,
+          cam.cometFocus,
+        );
 
         if (((now / 250) | 0) != (((now - dt * 1000) / 250) | 0)) hud.render();
 
@@ -282,7 +362,7 @@ export function bootSpace() {
       }
       raf = requestAnimationFrame(frame);
 
-      (window as unknown as { __space: unknown }).__space = { bodies, stars, cam, state, BODIES };
+      (window as unknown as { __space: unknown }).__space = { bodies, stars, comets, cam, state, BODIES, COMETS };
     })
     .catch((err) => {
       console.error(err);
