@@ -5,13 +5,11 @@ import '../../styles/lab-hud.css';
 
 <ToolLayout
   title="今日星空与月相 · 本地升落时刻"
-  description="按你的经纬度本地计算月相、日月升落与亮行星高度方位，历元由浏览器演算，无需上传。"
+  description="按你的位置告诉你今晚月亮几分圆、太阳何时落、哪颗亮行星在天上。浏览器本地演算，无需上传。"
   currentSlug="astro-today"
 >
   <h1 slot="header">今日星空</h1>
-  <p class="intro">
-    打开即见当前月相与星历数据。月盘使用真实月表纹理，按本地历元计算照明与升落。
-  </p>
+  <p class="intro">出门看天前瞄一眼：今晚月相、日月升落，以及此刻哪颗行星在地平线上。</p>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,6 +19,10 @@ import '../../styles/lab-hud.css';
   />
 
   <div class="lab-hud lab-hero" id="astro-root">
+    <p class="lab-story">
+      <strong>这页干嘛：</strong>根据你的经纬度，算出<strong>今晚月亮什么样</strong>、<strong>太阳几点落</strong>，以及<strong>金星火星等现在能不能看见</strong>。
+    </p>
+
     <canvas id="astro-moon" class="lab-hero-canvas" aria-label="月相主视图"></canvas>
     <p class="lab-hero-caption">
       <span class="lab-amber lab-phase-big" id="astro-phase-name">—</span>
@@ -28,8 +30,23 @@ import '../../styles/lab-hud.css';
       · 此刻 <span id="astro-now">—</span>
     </p>
 
-    <details class="lab-details">
-      <summary>观测点与数据表</summary>
+    <div class="lab-cards" aria-label="今晚要点">
+      <div class="lab-card">
+        <span class="lab-card-k">今晚月相</span>
+        <span class="lab-card-v amber" id="astro-card-phase">—</span>
+      </div>
+      <div class="lab-card">
+        <span class="lab-card-k">日落</span>
+        <span class="lab-card-v" id="astro-card-sunset">—</span>
+      </div>
+      <div class="lab-card">
+        <span class="lab-card-k">此刻最亮行星</span>
+        <span class="lab-card-v" id="astro-card-planet">—</span>
+      </div>
+    </div>
+
+    <details class="lab-details" open>
+      <summary>观测点与升落明细</summary>
       <p class="lab-note" id="astro-geo-note">初始化中…</p>
       <p class="lab-note">坐标 <span id="astro-pos">—</span></p>
       <div class="lab-controls">
@@ -50,7 +67,7 @@ import '../../styles/lab-hud.css';
       </table>
       <table>
         <thead>
-          <tr><th>行星</th><th>高度</th><th>方位</th><th>状态</th></tr>
+          <tr><th>行星</th><th>高度</th><th>朝哪边看</th><th>状态</th></tr>
         </thead>
         <tbody id="astro-planets"></tbody>
       </table>

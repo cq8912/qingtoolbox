@@ -4,14 +4,12 @@ import '../../styles/lab-hud.css';
 ---
 
 <ToolLayout
-  title="霍曼转移轨道实验"
-  description="二维霍曼转移可视化：调节内外圆轨道半径，观看转移椭圆动画并读出 Δv。"
+  title="轨道实验 · 从近地跳到更高轨道"
+  description="看懂飞船怎么从低轨「搬家」到高轨：拖半径滑杆，看转移椭圆与两次点火耗油（霍曼转移示意）。"
   currentSlug="orbit-lab"
 >
   <h1 slot="header">轨道实验</h1>
-  <p class="intro">
-    共面双圆轨道之间的霍曼转移：拖动半径滑杆，观察转移椭圆与两次点火所需的 Δv（μ=1 标准化单位）。
-  </p>
+  <p class="intro">太空「搬家」：从近地圆轨道跳到更高圆轨道。拖滑杆改半径，看飞船沿椭圆飞过去，并读出两次点火耗多少油。</p>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link
@@ -20,24 +18,44 @@ import '../../styles/lab-hud.css';
   />
 
   <div class="lab-hud">
+    <p class="lab-story">
+      <strong>这页干嘛：</strong>演示经典<strong>霍曼转移</strong>——先点火抬椭圆、飞半圈、再点火圆化。数字是相对单位（μ=1），用来比大小，不是真实 km/s。
+    </p>
+
     <canvas id="orbit-canvas" class="lab-canvas-host" aria-label="霍曼转移示意"></canvas>
+
+    <div class="lab-cards" aria-label="当前油耗">
+      <div class="lab-card">
+        <span class="lab-card-k">阶段</span>
+        <span class="lab-card-v amber" id="orbit-phase">—</span>
+      </div>
+      <div class="lab-card">
+        <span class="lab-card-k">第一次点火 Δv₁</span>
+        <span class="lab-card-v" id="orbit-dv1">—</span>
+      </div>
+      <div class="lab-card">
+        <span class="lab-card-k">油耗合计 Σ</span>
+        <span class="lab-card-v amber" id="orbit-dvt">—</span>
+      </div>
+    </div>
+
     <div class="lab-controls">
-      <label>内轨 r1 <span id="orbit-r1-val">1.00</span>
+      <label>近地半径 r1 <span id="orbit-r1-val">1.00</span>
         <input type="range" id="orbit-r1" min="0.5" max="5" step="0.01" value="1" />
       </label>
-      <label>外轨 r2 <span id="orbit-r2-val">2.00</span>
-        <input type="range" id="orbit-r2" min="0.5" max="5" step="0.01" value="2" />
+      <label>目标半径 r2 <span id="orbit-r2-val">2.00</span>
+        <input type="range" id="orbit-r2" min="0.5" max="7" step="0.01" value="2" />
       </label>
       <button type="button" class="lab-btn" id="orbit-play">暂停</button>
       <button type="button" class="lab-btn secondary" id="orbit-replay">重播</button>
+      <button type="button" class="lab-btn secondary" id="orbit-preset-leo" data-r1="1" data-r2="1.5">低轨→稍高</button>
+      <button type="button" class="lab-btn secondary" id="orbit-preset-geo" data-r1="1" data-r2="6.6">低轨→同步轨示意</button>
     </div>
     <p class="lab-meta">
       半长轴 a=<span class="lab-amber" id="orbit-a">—</span>
-      · Δv₁=<span id="orbit-dv1">—</span>
-      · Δv₂=<span id="orbit-dv2">—</span>
-      · Σ=<span class="lab-amber" id="orbit-dvt">—</span>
+      · 第二次点火 Δv₂=<span id="orbit-dv2">—</span>
     </p>
-    <p class="lab-note">仅演示共面霍曼转移，不做三体或逃逸轨道。</p>
+    <p class="lab-note">仅演示共面双圆霍曼转移；「同步轨示意」只改半径比，不代表真实地球距离。</p>
   </div>
 
   <div class="lab-related">

@@ -132,6 +132,7 @@ export class CameraController {
     };
     this.orbit.addEventListener('start', () => {
       this.faceSunHold = false;
+      this.stopEntryOrbit();
     });
 
     canvas.style.touchAction = 'none';
@@ -172,12 +173,50 @@ export class CameraController {
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
 
     this.focus = 'earth';
-    const target = this.bodies.getWorldPos('earth', this.tmp);
-    const dist = Math.max(this.bodies.getDef('earth').visualRadius * 12, 0.035);
-    this.orbit.target.copy(target);
-    this.camera.position.set(target.x + dist * 0.65, target.y + dist * 0.35, target.z + dist);
-    this.orbit.update();
+    this.placeEarthEntryView();
     this.baseFov = camera.fov;
+  }
+
+  /** 入场：晨昏线视角看地球，画面边缘能瞥见太阳；缓缓环绕便于定位 */
+  private entryOrbit = true;
+  private entryOrbitLeft = 14;
+  private entryOrbitSpeed = 0.12;
+
+  private placeEarthEntryView() {
+    const earth = this.bodies.getWorldPos('earth', this.tmp).clone();
+    const sun = this.bodies.getWorldPos('sun', this.tmpSun);
+    const dist = Math.max(this.bodies.getDef('earth').visualRadius * 14, 0.04);
+    // 背阳略偏侧：地球居中，太阳贴在画面一侧
+    const away = this.tmp2.copy(earth).sub(sun);
+    if (away.lengthSq() < 1e-12) away.set(0, 0, 1);
+    away.normalize();
+    let side = this.tmp3.set(0, 1, 0).cross(away);
+    if (side.lengthSq() < 1e-6) side.set(1, 0, 0);
+    side.normalize();
+    this.camera.position
+      .copy(earth)
+      .addScaledVector(away, dist * 0.28)
+      .addScaledVector(side, dist * 0.92);
+    this.camera.position.y += dist * 0.22;
+    this.orbit.target.copy(earth);
+    this.orbit.minDistance = Math.max(this.bodies.getDef('earth').visualRadius * 1.6, 0.0005);
+    this.orbit.update();
+    this.entryOrbit = true;
+    this.entryOrbitLeft = 14;
+  }
+
+  stopEntryOrbit() {
+    this.entryOrbit = false;
+  }
+
+  /** 场景 FO 就绪后再摆入场机位 */
+  beginEarthEntryOrbit() {
+    if (this.scaleMode != 'solar') return;
+    this.focus = 'earth';
+    this.cometFocus = null;
+    this.mode = 'observe';
+    this.orbit.enabled = true;
+    this.placeEarthEntryView();
   }
 
   /** 背阳侧略偏：相机在夜侧看行星，太阳在侧后方（用真实太阳世界坐标） */
@@ -273,10 +312,14 @@ export class CameraController {
 
   private travelEndPos(destPivot: THREE.Vector3, out: THREE.Vector3) {
     if (this.travelDomain == 'comet') {
-      // 从彗尾后方看向彗核
+      // 从彗尾侧后方看向彗核，略偏轴，避免钻进发光粒子里
       this.comets.antiSunDir(this.travelDestComet, this.tmp3);
-      const dist = Math.max(this.travelViewDist, 0.08);
-      return out.copy(destPivot).addScaledVector(this.tmp3, dist);
+      const dist = Math.max(this.travelViewDist, 0.35);
+      out.copy(destPivot).addScaledVector(this.tmp3, dist);
+      let side = this.tmp.set(0, 1, 0).cross(this.tmp3);
+      if (side.lengthSq() < 1e-8) side.set(1, 0, 0);
+      side.normalize();
+      return out.addScaledVector(side, dist * 0.28).addScaledVector(this.tmp2.set(0, 1, 0), dist * 0.08);
     }
     return out.copy(destPivot).addScaledVector(this.travelViewDir, this.travelViewDist);
   }
@@ -314,6 +357,7 @@ export class CameraController {
 
   setMode(m: CamMode) {
     if (m != 'tour') this.touring = false;
+    if (m != 'observe') this.stopEntryOrbit();
     this.mode = m;
     this.faceSunHold = false;
     this.orbit.enabled = m == 'observe';
@@ -346,6 +390,7 @@ export class CameraController {
   faceSun() {
     if (this.scaleMode != 'solar') return;
     this.stopTour();
+    this.stopEntryOrbit();
     this.faceSunHold = false;
 
     const planet = this.bodies.getWorldPos(this.focus, this.tmp);
@@ -448,6 +493,7 @@ export class CameraController {
       return;
     }
     this.stopTour();
+    this.stopEntryOrbit();
     this.faceSunHold = false;
     this.cometFocus = null;
     this.returningToSol = false;
@@ -601,6 +647,7 @@ export class CameraController {
     if (this.scaleMode != 'solar') return;
     if (this.cometFocus == id && this.mode != 'travel') return;
     this.stopTour();
+    this.stopEntryOrbit();
     this.faceSunHold = false;
     this.cometFocus = id;
     this.travelDomain = 'comet';
@@ -611,7 +658,7 @@ export class CameraController {
     this.travelFrom.copy(this.camera.position);
     this.travelPivotStart.copy(this.orbit.target);
     this.travelFromQuat.copy(this.camera.quaternion);
-    this.travelViewDist = Math.max(COMET_BY_ID[id].visualRadius * 28, 0.12);
+    this.travelViewDist = Math.max(COMET_BY_ID[id].visualRadius * 120, 0.42);
     this.travelViewDir.set(0.5, 0.25, 1).normalize();
 
     const dest = this.comets.getWorldPos(id, this.tmp);
@@ -637,6 +684,7 @@ export class CameraController {
       return;
     }
     if (id == this.focus && this.mode != 'travel' && !this.touring && !this.cometFocus) return;
+    this.stopEntryOrbit();
     this.cometFocus = null;
     this.faceSunHold = false;
     this.travelDomain = 'body';
@@ -779,7 +827,7 @@ export class CameraController {
       this.orbit.enabled = true;
       this.comets.getWorldPos(this.travelDestComet, this.tmp);
       this.orbit.target.copy(this.tmp);
-      this.orbit.minDistance = Math.max(COMET_BY_ID[this.travelDestComet].visualRadius * 4, 0.02);
+      this.orbit.minDistance = Math.max(COMET_BY_ID[this.travelDestComet].visualRadius * 40, 0.08);
       done?.();
       return;
     }
@@ -982,6 +1030,21 @@ export class CameraController {
     }
 
     if (this.mode == 'observe') {
+      if (this.entryOrbit && this.scaleMode == 'solar' && this.focus == 'earth' && !this.cometFocus) {
+        this.entryOrbitLeft -= dt;
+        if (this.entryOrbitLeft <= 0) {
+          this.stopEntryOrbit();
+        } else {
+          this.bodies.getWorldPos('earth', this.tmp);
+          this.tmp2.copy(this.camera.position).sub(this.tmp);
+          this.tmp2.applyAxisAngle(UP, this.entryOrbitSpeed * dt);
+          this.camera.position.copy(this.tmp).add(this.tmp2);
+          this.orbit.target.copy(this.tmp);
+          this.orbit.update();
+          return;
+        }
+      }
+
       if (this.faceSunHold && this.scaleMode == 'solar') {
         const pivot = this.faceSunPivot(this.tmp);
         this.applyFaceSunPose(pivot, this.faceSunToDir);

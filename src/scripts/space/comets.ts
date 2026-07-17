@@ -39,7 +39,7 @@ export const COMETS: CometDef[] = [
     mDeg: 38.38,
     periodDays: 27798,
     color: 0x88ccff,
-    visualRadius: 0.004,
+    visualRadius: 0.00055,
   },
   {
     id: 'encke',
@@ -53,7 +53,7 @@ export const COMETS: CometDef[] = [
     mDeg: 210.4,
     periodDays: 1204,
     color: 0xaaffcc,
-    visualRadius: 0.003,
+    visualRadius: 0.0004,
   },
   {
     id: '67p',
@@ -67,7 +67,7 @@ export const COMETS: CometDef[] = [
     mDeg: 85.2,
     periodDays: 2353,
     color: 0xffd4a8,
-    visualRadius: 0.0032,
+    visualRadius: 0.00045,
   },
 ];
 

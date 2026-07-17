@@ -22,18 +22,19 @@ export class CometSystem {
   private createComet(def: CometDef) {
     const g = new THREE.Group();
     const core = new THREE.Mesh(
-      new THREE.SphereGeometry(def.visualRadius, 24, 16),
+      new THREE.SphereGeometry(def.visualRadius, 20, 14),
       new THREE.MeshStandardMaterial({
         color: def.color,
         emissive: def.color,
-        emissiveIntensity: 0.45,
-        roughness: 0.55,
+        emissiveIntensity: 0.12,
+        roughness: 0.7,
+        metalness: 0.05,
       }),
     );
     g.add(core);
 
-    // 彗尾：沿 -太阳方向的粒子条带
-    const N = 180;
+    // 彗尾：背日粒子条带（弱发光，避免跃迁贴脸刺眼）
+    const N = 120;
     const pos = new Float32Array(N * 3);
     const col = new Float32Array(N * 3);
     const r = ((def.color >> 16) & 255) / 255;
@@ -44,7 +45,7 @@ export class CometSystem {
       pos[i * 3] = 0;
       pos[i * 3 + 1] = 0;
       pos[i * 3 + 2] = 0;
-      const a = 1 - t * 0.85;
+      const a = (1 - t * 0.9) * 0.55;
       col[i * 3] = r * a;
       col[i * 3 + 1] = gg * a;
       col[i * 3 + 2] = b * a;
@@ -55,11 +56,11 @@ export class CometSystem {
     const tail = new THREE.Points(
       geo,
       new THREE.PointsMaterial({
-        size: 0.018,
+        size: 0.006,
         sizeAttenuation: true,
         vertexColors: true,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.55,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
       }),
@@ -88,14 +89,14 @@ export class CometSystem {
     if (this.tmpSun.lengthSq() < 1e-8) this.tmpSun.set(1, 0, 0);
     const away = this.tmp.copy(this.tmpSun); // 从太阳指向彗星 = 尾向外？ 尾应指远离太阳
     // 太阳在 0，彗星在 log → 太阳→彗星方向是 log；彗尾在反太阳方向继续延伸 = +log 方向
-    const len = Math.min(1.8, Math.max(0.25, 0.9 / Math.max(log.length(), 0.4)));
+    const len = Math.min(0.55, Math.max(0.12, 0.35 / Math.max(log.length(), 0.5)));
     const pos = tail.geometry.getAttribute('position') as THREE.BufferAttribute;
     const N = pos.count;
     let s = def.id.length * 97;
     for (let i = 0; i < N; i++) {
       const t = i / (N - 1);
       s = (s * 16807) % 2147483647;
-      const jitter = ((s % 1000) / 1000 - 0.5) * 0.04 * t;
+      const jitter = ((s % 1000) / 1000 - 0.5) * 0.012 * t;
       // 尾在局部坐标：核在 0，沿 away 延伸
       pos.array[i * 3] = away.x * len * t + jitter;
       pos.array[i * 3 + 1] = away.y * len * t + jitter * 0.5;

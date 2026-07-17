@@ -1,4 +1,4 @@
-import { drawOrbit } from './draw';
+import { drawOrbit, orbitPhaseText } from './draw';
 import { hohmann } from './physics';
 
 function $(id: string) {
@@ -33,6 +33,7 @@ export function bootOrbitLab() {
     $('orbit-a').textContent = h.a.toFixed(3);
     $('orbit-r1-val').textContent = r1.toFixed(2);
     $('orbit-r2-val').textContent = r2.toFixed(2);
+    $('orbit-phase').textContent = orbitPhaseText(t);
   };
 
   const frame = (now: number) => {
@@ -45,6 +46,7 @@ export function bootOrbitLab() {
     const r1 = Number(r1El.value);
     const r2 = Number(r2El.value);
     drawOrbit(ctx, canvas.width, canvas.height, r1, r2, t);
+    $('orbit-phase').textContent = orbitPhaseText(t);
     requestAnimationFrame(frame);
   };
 
@@ -58,6 +60,18 @@ export function bootOrbitLab() {
     t = 0;
     playing = true;
     $('orbit-play').textContent = '暂停';
+  });
+
+  document.querySelectorAll('[data-r1]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const el = btn as HTMLElement;
+      r1El.value = el.dataset.r1 || '1';
+      r2El.value = el.dataset.r2 || '2';
+      t = 0;
+      playing = true;
+      $('orbit-play').textContent = '暂停';
+      updateHud();
+    });
   });
 
   updateHud();

@@ -158,15 +158,19 @@ export function drawSkyDome(canvas: HTMLCanvasElement, state: SkyVizState, timeM
     if (pass) {
       ctx.fillStyle = 'rgba(232,244,255,0.9)';
       ctx.font = `${11 * dpr}px monospace`;
-      ctx.fillText(`下次过顶 · 最高 ${pass.maxEl.toFixed(0)}° · ${formatShort(pass.max)}`, 16, 28);
+      const label = state.passIndex == 0 ? '下次过顶' : `第 ${state.passIndex + 1} 次过顶`;
+      ctx.fillText(`${label} · 最高 ${pass.maxEl.toFixed(0)}° · ${formatShort(pass.max)}`, 16, 28);
       ctx.fillStyle = 'rgba(0,232,255,0.65)';
       ctx.font = `${10 * dpr}px monospace`;
-      ctx.fillText('弧线 = ISS 在地平天空中的飞行路径（仰角越高越接近头顶）', 16, 46);
+      ctx.fillText('亮点沿弧线飞 = ISS；N/E/S/W 是方位，仰角越高越接近头顶', 16, 46);
     }
   } else {
-    ctx.fillStyle = 'rgba(232,244,255,0.7)';
-    ctx.font = `${12 * dpr}px monospace`;
-    ctx.fillText('未来 48h 无仰角≥10° 的 ISS 过顶', cx - 120 * dpr, h * 0.4);
+    ctx.fillStyle = 'rgba(232,244,255,0.85)';
+    ctx.font = `bold ${14 * dpr}px sans-serif`;
+    ctx.fillText('未来 48 小时没有好看的过顶', cx - 130 * dpr, h * 0.38);
+    ctx.fillStyle = 'rgba(0,232,255,0.55)';
+    ctx.font = `${11 * dpr}px monospace`;
+    ctx.fillText('仰角需 ≥10°；可换定位或稍后再查', cx - 110 * dpr, h * 0.38 + 22 * dpr);
   }
 
   ctx.strokeStyle = 'rgba(0,232,255,0.25)';

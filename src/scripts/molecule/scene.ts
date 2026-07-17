@@ -95,10 +95,8 @@ export function createMolScene(canvas: HTMLCanvasElement): MolScene {
     }
 
     root.position.set(0, 0, 0);
-    const scale =
-      mol.id == 'water' ? 1.8 :
-      mol.id == 'caffeine' || mol.id == 'dopamine' || mol.id == 'serotonin' ? 1.15 :
-      1;
+    // 统一坐标尺度，靠相机距离适配画布，避免大分子溢出
+    const scale = 1;
 
     for (const atom of mol.atoms) {
       const geo = new THREE.SphereGeometry(ELEMENT_RADIUS[atom.el] * scale, 28, 22);
@@ -148,8 +146,15 @@ export function createMolScene(canvas: HTMLCanvasElement): MolScene {
     const center = box.getCenter(new THREE.Vector3());
     root.position.sub(center);
     controls.target.set(0, 0, 0);
-    const size = box.getSize(new THREE.Vector3()).length();
-    camera.position.set(size * 0.42, size * 0.28, size * 0.58);
+    // 按包围盒 + FOV 拉远，四周留白，保证整颗分子进画布
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z, 0.5);
+    const fitH = maxDim / (2 * Math.tan((camera.fov * Math.PI) / 360));
+    const fitW = fitH / Math.max(camera.aspect, 0.2);
+    const dist = Math.max(fitH, fitW) * 1.55;
+    camera.position.set(dist * 0.72, dist * 0.42, dist * 0.95);
+    controls.minDistance = dist * 0.35;
+    controls.maxDistance = dist * 6;
     controls.update();
   };
 

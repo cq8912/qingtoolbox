@@ -185,3 +185,74 @@
 .lab-related a {
   margin-right: 0.85rem;
 }
+
+/* 一屏结论卡：打开就知道这页能干嘛 */
+.lab-story {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(0, 20, 32, 0.45);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.lab-story strong {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.lab-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin: 0.65rem 0 0.85rem;
+}
+
+.lab-card {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(0, 12, 22, 0.55);
+  min-width: 0;
+}
+
+.lab-card-k {
+  display: block;
+  font-family: var(--font-m);
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
+.lab-card-v {
+  display: block;
+  font-size: 0.92rem;
+  color: var(--cyan);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.lab-card-v.amber {
+  color: var(--amber);
+}
+
+@media (max-width: 640px) {
+  .lab-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lab-hud table tr.sat-row-pick {
+  cursor: pointer;
+}
+
+.lab-hud table tr.sat-row-pick:hover td {
+  color: var(--cyan);
+}
+
+.lab-hud table tr.sat-row-active td {
+  color: var(--amber);
+  font-weight: 600;
+}

@@ -17,6 +17,11 @@ function fmtTime(d: Date | null) {
   return d ? formatLocalTime(d) : '—';
 }
 
+function fmtClock(d: Date | null) {
+  if (!d) return '今日无升起/落下';
+  return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 function refresh(lat: number, lon: number) {
   const when = new Date();
   const illum = moonIllumination(when);
@@ -33,6 +38,17 @@ function refresh(lat: number, lon: number) {
   $('astro-moon-set').textContent = fmtTime(rs.moon.set);
   $('astro-pos').textContent = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 
+  $('astro-card-phase').textContent = `${phase.name} · 亮面约 ${(illum * 100).toFixed(0)}%`;
+  $('astro-card-sunset').textContent = fmtClock(rs.sun.set);
+
+  const up = planets.filter((p) => p.altitude > 0).sort((a, b) => b.altitude - a.altitude);
+  if (up.length) {
+    const top = up[0];
+    $('astro-card-planet').textContent = `${top.name} · ${formatAz(top.azimuth)} · 高 ${top.altitude.toFixed(0)}°`;
+  } else {
+    $('astro-card-planet').textContent = '亮行星都在地平线下';
+  }
+
   const canvas = $('astro-moon') as HTMLCanvasElement;
   drawMoonHeroSync(canvas, when, illum * 100, phase.name);
 
@@ -43,7 +59,7 @@ function refresh(lat: number, lon: number) {
         <td>${p.name}</td>
         <td>${p.altitude.toFixed(1)}°</td>
         <td>${formatAz(p.azimuth)}</td>
-        <td>${p.altitude > 0 ? '地平线上' : '地平线下'}</td>
+        <td>${p.altitude > 0 ? '地平线上，抬头能找' : '地平线下'}</td>
       </tr>`,
     )
     .join('');
@@ -82,7 +98,6 @@ export function bootAstroToday() {
     if (p) refresh(p.lat, p.lon);
   });
 
-  // 进入即算：先默认坐标出图，再尝试 GPS
   refresh(DEFAULT_LAT, DEFAULT_LON);
   $('astro-geo-note').textContent = '观测点：北京（默认）';
 

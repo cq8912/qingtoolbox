@@ -274,6 +274,7 @@ export function bootSpace() {
       const d0 = bodies.setFloatingOrigin(foTarget);
       comets.syncOrigin(bodies.floatingOrigin);
       cam.applyOriginShift(d0);
+      cam.beginEarthEntryOrbit();
 
       if (miniCanvas) {
         minimap = new Minimap(miniCanvas, bodies, stars, camera);

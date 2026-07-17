@@ -4,13 +4,13 @@ import '../../styles/lab-hud.css';
 ---
 
 <ToolLayout
-  title="ISS 卫星过顶简报"
-  description="根据本地经纬度与仓库内 ISS TLE 快照，计算未来 48 小时过顶时刻与最大仰角。"
+  title="ISS 卫星过顶 · 几点抬头看"
+  description="根据你的位置，算出国际空间站未来 48 小时何时从天上飞过、有多接近头顶。"
   currentSlug="sat-pass"
 >
   <h1 slot="header">卫星过顶</h1>
   <p class="intro">
-    <strong>过顶</strong>：国际空间站从你头顶附近飞过的一段时间。此时 ISS 最亮、最好找——仰角越高越接近「正头顶」。
+    国际空间站（ISS）从你家天上飞过时，往往是肉眼可见的亮点。本页告诉你<strong>下次该几点抬头</strong>，以及飞得多正头顶。
   </p>
 
   <link
@@ -19,11 +19,30 @@ import '../../styles/lab-hud.css';
   />
 
   <div class="lab-hud lab-hero">
+    <p class="lab-story">
+      <strong>这页干嘛：</strong>查<strong>ISS 过顶时刻</strong>。仰角越高越接近「正头顶」，越好找。星历用仓库内 TLE 快照（非实时联网）。
+    </p>
+
     <canvas id="sat-canvas" class="lab-hero-canvas" aria-label="ISS 过顶天穹预测"></canvas>
+
+    <div class="lab-cards" aria-label="下次过顶">
+      <div class="lab-card">
+        <span class="lab-card-k">下次过顶</span>
+        <span class="lab-card-v amber" id="sat-card-when">计算中…</span>
+      </div>
+      <div class="lab-card">
+        <span class="lab-card-k">最高有多正头顶</span>
+        <span class="lab-card-v" id="sat-card-el">—</span>
+      </div>
+      <div class="lab-card">
+        <span class="lab-card-k">最高时朝哪看</span>
+        <span class="lab-card-v" id="sat-card-az">—</span>
+      </div>
+    </div>
     <p class="lab-hero-caption lab-amber" id="sat-next">计算中…</p>
 
     <details class="lab-details" open>
-      <summary>过顶时刻表</summary>
+      <summary>过顶时刻表（点一行可重播该次轨迹）</summary>
       <p class="lab-note">星历快照 <span class="lab-amber" id="sat-updated">—</span> · <span id="sat-geo-note">—</span></p>
       <div class="lab-controls">
         <label>纬度 <input type="number" id="sat-lat" step="0.0001" /></label>
@@ -34,7 +53,7 @@ import '../../styles/lab-hud.css';
       <p class="lab-meta" id="sat-status">—</p>
       <table>
         <thead>
-          <tr><th>升起</th><th>最高（头顶最近）</th><th>落下</th><th>最大仰角</th><th>方位</th></tr>
+          <tr><th>出现</th><th>飞到最高</th><th>消失</th><th>有多正头顶</th><th>朝哪看</th></tr>
         </thead>
         <tbody id="sat-rows"></tbody>
       </table>
