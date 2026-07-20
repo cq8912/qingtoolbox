@@ -151,6 +151,18 @@
     ]
   },
   {
+    "slug": "invisible-chars",
+    "name": "不可见字符",
+    "desc": "检测零宽空格等隐藏字符并高亮清除",
+    "icon": "隐",
+    "category": "text",
+    "tags": [
+      "文本",
+      "办公",
+      "开发"
+    ]
+  },
+  {
     "slug": "qrcode",
     "name": "二维码",
     "desc": "文本或链接生成二维码并下载 PNG",

@@ -676,6 +676,122 @@ main {
   border-radius: 4px;
 }
 
+.ic-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.86rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.ic-option input {
+  margin: 0;
+}
+
+.ic-split {
+  margin-top: 16px;
+}
+
+.ic-preview {
+  min-height: 160px;
+  max-height: 340px;
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ic-empty,
+.ic-ok {
+  color: var(--muted);
+}
+
+.ic-mark {
+  display: inline;
+  margin: 0 1px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-style: normal;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.ic-mark.is-active,
+.ic-finding.is-active {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.ic-zero-width {
+  background: #ffe8e8;
+  color: #b42318;
+}
+
+.ic-space {
+  background: #e8f1ff;
+  color: #175cd3;
+}
+
+.ic-bidi {
+  background: #f3e8ff;
+  color: #6941c6;
+}
+
+.ic-control,
+.ic-format {
+  background: #fff4e5;
+  color: #b54708;
+}
+
+.ic-finding {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  width: 100%;
+  padding: 8px 4px;
+  border: 0;
+  border-bottom: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.ic-finding:last-child {
+  border-bottom: none;
+}
+
+.ic-finding:hover {
+  background: var(--bg);
+}
+
+.ic-finding strong,
+.ic-finding span {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.ic-finding code {
+  color: var(--text);
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+
 .qr-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 420px;

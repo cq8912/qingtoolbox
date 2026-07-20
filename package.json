@@ -8,7 +8,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "lint": "astro check",
-    "check:labs": "tsx src/scripts/astro-today/self-check.ts && tsx src/scripts/orbit-lab/self-check.ts && tsx src/scripts/sat-pass/self-check.ts && tsx src/scripts/molecule/self-check.ts && tsx src/scripts/audio-viz/self-check.ts",
+    "check:labs": "tsx src/scripts/astro-today/self-check.ts && tsx src/scripts/orbit-lab/self-check.ts && tsx src/scripts/sat-pass/self-check.ts && tsx src/scripts/molecule/self-check.ts && tsx src/scripts/audio-viz/self-check.ts && tsx src/scripts/invisible-chars/self-check.ts",
     "seo:fetch-gsc": "tsx scripts/seo/fetch-gsc.ts",
     "seo:fetch-bing": "tsx scripts/seo/fetch-bing.ts",
     "seo:keyword-hints": "tsx scripts/seo/keyword-hints.ts",

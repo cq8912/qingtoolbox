@@ -1,0 +1,217 @@
+---
+import ToolLayout from '../../layouts/ToolLayout.astro';
+---
+
+<ToolLayout
+  title="不可见字符检测在线工具"
+  description="在线检测零宽空格、不换行空格、BOM 等不可见字符，高亮定位并可一键清除，浏览器本地处理不上传。"
+  currentSlug="invisible-chars"
+>
+  <h1 slot="header">不可见字符检测</h1>
+  <p class="intro">粘贴文本，找出零宽空格、特殊空白、双向控制符等「看不见却捣乱」的字符，支持高亮、可视化复制与一键清除。</p>
+
+  <div class="tool-panel">
+    <label>快速示例</label>
+    <div class="regex-demo-list">
+      <button class="regex-demo-btn" type="button" data-demo="zwsp">零宽空格</button>
+      <button class="regex-demo-btn" type="button" data-demo="nbsp">不换行空格</button>
+      <button class="regex-demo-btn" type="button" data-demo="bom">BOM 头</button>
+      <button class="regex-demo-btn" type="button" data-demo="mix">混合异常</button>
+      <button class="regex-demo-btn" type="button" data-demo="json">JSON 排雷</button>
+    </div>
+    <label for="ic-input">文本</label>
+    <textarea id="ic-input" class="json-editor tall-editor" placeholder="在这里粘贴或输入要检查的文本" spellcheck="false"></textarea>
+    <div class="btn-row">
+      <button class="btn" id="btn-clean" type="button">清除可疑字符</button>
+      <button class="btn btn-secondary" id="btn-copy-clean" type="button">复制清洗结果</button>
+      <button class="btn btn-secondary" id="btn-copy-viz" type="button">复制可视化文本</button>
+      <button class="btn btn-secondary" id="btn-clear" type="button">清空</button>
+    </div>
+    <label class="ic-option">
+      <input type="checkbox" id="ic-space-normal" checked />
+      清除时把特殊空白替换成普通空格（否则直接删除）
+    </label>
+    <div id="ic-msg"></div>
+  </div>
+
+  <div class="stat-grid" aria-live="polite">
+    <div class="stat-card"><span>总字符</span><strong id="ic-total">0</strong></div>
+    <div class="stat-card"><span>可疑字符</span><strong id="ic-bad">0</strong></div>
+    <div class="stat-card"><span>零宽</span><strong id="ic-zw">0</strong></div>
+    <div class="stat-card"><span>特殊空白</span><strong id="ic-sp">0</strong></div>
+    <div class="stat-card"><span>双向控制</span><strong id="ic-bidi">0</strong></div>
+    <div class="stat-card"><span>控制/格式</span><strong id="ic-fmt">0</strong></div>
+  </div>
+
+  <div class="json-split ic-split">
+    <div class="tool-panel">
+      <label>高亮预览（点击标记可定位）</label>
+      <div class="ic-preview" id="ic-preview" aria-live="polite"></div>
+    </div>
+    <div class="tool-panel">
+      <label>检测列表</label>
+      <div class="result-box" id="ic-list">等待输入</div>
+    </div>
+  </div>
+
+  <section class="section">
+    <h2>能检出什么？</h2>
+    <ul>
+      <li>零宽空格（ZWSP）、零宽连字、BOM（U+FEFF）</li>
+      <li>不换行空格、全角空格等特殊空白</li>
+      <li>左右向控制符（LRM / RLM 等），常见于复制网页或聊天内容</li>
+      <li>其它 C0/C1 控制符与格式符</li>
+    </ul>
+    <p class="field-hint">普通空格、换行、Tab 默认不标为异常。文本仅在浏览器内存中处理，不会上传。</p>
+  </section>
+</ToolLayout>
+
+<script>
+  import {
+    scan,
+    cleanText,
+    visualizeText,
+    previewHtml,
+    countByCategory,
+    categoryLabel,
+    escHtml,
+    type Finding,
+  } from '../../scripts/invisible-chars/detect';
+
+  const input = document.getElementById('ic-input') as HTMLTextAreaElement;
+  const preview = document.getElementById('ic-preview')!;
+  const list = document.getElementById('ic-list')!;
+  const msg = document.getElementById('ic-msg')!;
+  const spaceNormal = document.getElementById('ic-space-normal') as HTMLInputElement;
+
+  const demos: Record<string, string> = {
+    zwsp: '密码看起来一样：secret\u200B123（中间藏了零宽空格）',
+    nbsp: '从 Word 复制：你好\u00A0世界（不换行空格）',
+    bom: '\uFEFF{"ok":true}',
+    mix: '标题\u3000正文\u200B隐藏\u200E方向\u00A0空白',
+    json: '{\n  "name": "示例\u200B",\n  "note": "不可见字符会导致校验失败"\n}',
+  };
+
+  let findings: Finding[] = [];
+
+  function set(id: string, value: string | number) {
+    document.getElementById(id)!.textContent = String(value);
+  }
+
+  function showMsg(text: string, type: 'error' | 'success') {
+    msg.className = `msg ${type}`;
+    msg.textContent = text;
+  }
+
+  function render() {
+    const text = input.value;
+    findings = scan(text);
+    const counts = countByCategory(findings);
+
+    set('ic-total', text.length);
+    set('ic-bad', findings.length);
+    set('ic-zw', counts['zero-width']);
+    set('ic-sp', counts.space);
+    set('ic-bidi', counts.bidi);
+    set('ic-fmt', counts.control + counts.format);
+
+    preview.innerHTML = previewHtml(text);
+
+    if (!text) {
+      list.textContent = '等待输入';
+      return;
+    }
+    if (!findings.length) {
+      list.innerHTML = '<div class="match-item">未发现可疑字符</div>';
+      return;
+    }
+
+    list.innerHTML = findings
+      .map((f, i) => {
+        return `<button type="button" class="ic-finding" data-idx="${i}">
+          <strong>#${i + 1}</strong>
+          <code>[${escHtml(f.marker)}]</code>
+          <span>${escHtml(f.label)}</span>
+          <span>${f.hex}</span>
+          <span>${categoryLabel(f.category)}</span>
+          <span>行 ${f.line} 列 ${f.col}</span>
+        </button>`;
+      })
+      .join('');
+  }
+
+  function focusFinding(idx: number) {
+    const f = findings[idx];
+    if (!f) return;
+    input.focus();
+    input.setSelectionRange(f.index, f.index + f.char.length);
+    // 预览标记同步高亮
+    preview.querySelectorAll('.ic-mark').forEach((el) => el.classList.remove('is-active'));
+    const mark = preview.querySelector(`.ic-mark[data-idx="${idx}"]`);
+    if (mark) {
+      mark.classList.add('is-active');
+      mark.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+    list.querySelectorAll('.ic-finding').forEach((el) => el.classList.remove('is-active'));
+    const row = list.querySelector(`.ic-finding[data-idx="${idx}"]`);
+    if (row) row.classList.add('is-active');
+  }
+
+  input.addEventListener('input', render);
+
+  preview.addEventListener('click', (e) => {
+    const t = (e.target as HTMLElement).closest('.ic-mark') as HTMLElement | null;
+    if (!t) return;
+    focusFinding(Number(t.dataset.idx));
+  });
+
+  list.addEventListener('click', (e) => {
+    const t = (e.target as HTMLElement).closest('.ic-finding') as HTMLElement | null;
+    if (!t) return;
+    focusFinding(Number(t.dataset.idx));
+  });
+
+  document.querySelectorAll('.regex-demo-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = (btn as HTMLElement).dataset.demo || '';
+      if (!demos[key]) return;
+      input.value = demos[key];
+      render();
+      showMsg(`已载入示例：${(btn as HTMLElement).textContent}`, 'success');
+    });
+  });
+
+  document.getElementById('btn-clean')!.addEventListener('click', () => {
+    const before = findings.length;
+    if (!before) {
+      showMsg('没有需要清除的字符', 'success');
+      return;
+    }
+    input.value = cleanText(input.value, spaceNormal.checked);
+    render();
+    showMsg(`已清除 ${before} 处可疑字符`, 'success');
+  });
+
+  document.getElementById('btn-copy-clean')!.addEventListener('click', async () => {
+    const cleaned = cleanText(input.value, spaceNormal.checked);
+    if (!cleaned && !input.value) return;
+    await navigator.clipboard.writeText(cleaned);
+    showMsg('已复制清洗结果', 'success');
+  });
+
+  document.getElementById('btn-copy-viz')!.addEventListener('click', async () => {
+    const viz = visualizeText(input.value);
+    if (!viz) return;
+    await navigator.clipboard.writeText(viz);
+    showMsg('已复制可视化文本（含 [ZWSP] 等标记）', 'success');
+  });
+
+  document.getElementById('btn-clear')!.addEventListener('click', () => {
+    input.value = '';
+    msg.textContent = '';
+    msg.className = '';
+    render();
+  });
+
+  render();
+</script>
